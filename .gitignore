@@ -2,6 +2,7 @@
 /paper
 /dataset
 __pycache__
+abandoned_code.py
 *.pptx
 *.ppt
 *.doc
