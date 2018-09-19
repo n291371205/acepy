@@ -64,14 +64,11 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
             self.X = X
             self.y = y
 
-    def select(self, label_index, unlabel_index, model, batch_size=1):
+    def select(self, unlabel_index, model, batch_size=1):
         """Select index in unlabel_index to query
 
         Parameters
         ----------
-        label_index: array or set like
-            index of label set
-
         unlabel_index: array or set like
             index of unlabel set
 

@@ -20,6 +20,7 @@ from utils.ace_warnings import *
 
 "Using a factory class to generate the appropriate DB"
 
+
 class KnowledgeDB:
     pass
 
@@ -310,7 +311,7 @@ class ElementKnowledgeDB(BaseDB):
                 assert (len(indexes) == len(labels))
                 for i in range(len(labels)):
                     self.add(labels[i], indexes[i], example=examples[i] if examples is not None else None,
-                                        cost=cost[i] if cost is not None else None)
+                             cost=cost[i] if cost is not None else None)
         self.num_of_queries += 1
 
     def retrieve_by_indexes(self, indexes):
@@ -396,6 +397,7 @@ class ElementKnowledgeDB(BaseDB):
         self.cost_arr = []
         self.num_of_queries = 0
 
+
 # this class can only deal with the query-all-labels setting
 class MatrixKnowledgeDB(BaseDB):
     """Knowledge DataBase.
@@ -475,7 +477,7 @@ class MatrixKnowledgeDB(BaseDB):
         """
         return self.retrieve_by_index(index)
 
-    def add(self, select_index, label, cost, example=None):
+    def add(self, label, select_index, cost, example=None):
         """add an element to the DB.
 
         Parameters
@@ -495,14 +497,15 @@ class MatrixKnowledgeDB(BaseDB):
         """
         # check validation
         if self._y.ndim == 1:
-            if _is_arraylike(label):
-                raise TypeError("The initialized label dry only have 1 dimension, "
+            if hasattr(label, '__len__'):
+                raise TypeError("The initialized label array only have 1 dimension, "
                                 "but received an array like label: %s." % str(label))
+            self._y = np.append(self._y, [label])
         else:
-            self._y = np.append(self._y, label)  # this operation will check the validity automatically.
+            # this operation will check the validity automatically.
+            self._y = np.append(self._y, [label], axis=0)
         if select_index in self._indexes:
-            warnings.warn("Repeated index is found when adding element to knowledge data base. Skipp this item",
-                          catagory=RepeatElementWarning)
+            warnings.warn("Repeated index is found when adding element to knowledge data base. Skipp this item")
             return self
         self._indexes = np.append(self._indexes, select_index)
         self.cost_arr.append(cost)
@@ -511,7 +514,7 @@ class MatrixKnowledgeDB(BaseDB):
             if example is None:
                 raise ValueError("Example must be provided in a database initialized with examples.")
             else:
-                self._X = np.append(self._X, example)
+                self._X = np.append(self._X, [example], axis=0)
         return self
 
     def update_query(self, labels, indexes, cost, examples=None):
@@ -535,13 +538,10 @@ class MatrixKnowledgeDB(BaseDB):
         if not isinstance(indexes, (list, np.ndarray)):
             self.add(labels, indexes, cost, examples)
         else:
-            if len(indexes) == 1:
-                self.add(labels, indexes[0], cost, examples)
-            else:
-                assert (len(indexes) == len(labels))
-                for i in range(len(indexes)):
-                    self.add(labels[i], indexes[i], cost=cost[i],
-                             example=examples[i] if examples is not None else None)
+            assert (len(indexes) == len(labels))
+            for i in range(len(indexes)):
+                self.add(labels[i], indexes[i], cost=cost[i],
+                         example=examples[i] if examples is not None else None)
         self.num_of_queries += 1
         return self
 
@@ -585,15 +585,15 @@ class MatrixKnowledgeDB(BaseDB):
         """
         # check if in the dict?
         if not isinstance(indexes, (list, np.ndarray)):
-            ind = np.argwhere(self._indexes == indexes) #will return empty array if not found.
-            return self._X[ind] if self._instance_flag else None, self._y[ind]
+            ind = np.argwhere(self._indexes == indexes)  # will return empty array if not found.
+            return self._X[ind, ] if self._instance_flag else None, self._y[ind,]
         else:
             if len(indexes) == 1:
-                ind = np.argwhere(self._indexes == indexes[0])
-                return self._X[ind] if self._instance_flag else None, self._y[ind]
+                ind = np.argwhere(self._indexes == indexes[0]).flatten()
+                return self._X[ind, ] if self._instance_flag else None, self._y[ind, ]
             else:
-                ind = [np.argwhere(self._indexes == indexes[i]) for i in range(len(indexes))]
-                return self._X[ind] if self._instance_flag else None, self._y[ind]
+                ind = [np.argwhere(self._indexes == indexes[i]).flatten() for i in range(len(indexes))]
+                return self._X[ind, ] if self._instance_flag else None, self._y[ind, ]
 
     def retrieve_by_examples(self, examples):
         """retrieve by examples
@@ -613,11 +613,16 @@ class MatrixKnowledgeDB(BaseDB):
             raise ValueError("This data base is not initialized with examples, retrieve by example is illegal.")
         examples = np.asarray(examples)
         if examples.ndim == 1:
-            ind = np.argwhere(self._X == examples) #will return empty array if not found.
-            return self._X[ind], self._y[ind]
+            ind = np.argwhere(self._X == examples).flatten()  # will return empty array if not found.
+            return self._X[ind,], self._y[ind,]
         elif examples.ndim == 2:
-            ind = [np.argwhere(self._X == examples[i]) for i in range(len(examples))]
-            return self._X[ind], self._y[ind]
+            ind = []
+            for i in range(len(examples)):
+                for ins in self._X:
+                    if np.all(ins == examples[i]):
+                        ind.append(i)
+            # ind = [np.argwhere(self._X == examples[i]).flatten() for i in range(len(examples))]
+            return self._X[ind,], self._y[ind,]
         else:
             raise ValueError("A 1D or 2D array is expected. But received: %d" % examples.ndim)
 
@@ -649,6 +654,6 @@ class MatrixKnowledgeDB(BaseDB):
         self._y = None
         self._indexes = None
 
-# class MultiLabelKnowledgeDB(MatrixKnowledgeDB):
-#     """Using a sparse matrix to save the data
-#     """
+        # class MultiLabelKnowledgeDB(MatrixKnowledgeDB):
+        #     """Using a sparse matrix to save the data
+        #     """

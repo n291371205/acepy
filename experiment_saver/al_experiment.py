@@ -32,7 +32,7 @@ class AlExperiment:
         src: object or str
             StateIO object or path to the intermediate results file.
         """
-        if isinstance(src, experiment_saver.StateIO.StateIO):
+        if isinstance(src, experiment_saver.state_io.StateIO):
             if not src.check_batch_size():
                 warnings.warn('Checking validity fails, different batch size is found.', category=ValidityWarning)
             self.__add_fold_by_object(src)

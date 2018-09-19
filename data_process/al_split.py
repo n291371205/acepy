@@ -112,7 +112,7 @@ class ExperimentSetting:
             else:
                 self._index_len = n_samples
         if instance_indexes is None:
-            self._indexes = [i for i in range(len(self._index_len))]
+            self._indexes = [i for i in range(self._index_len)]
         else:
             if self._index_len is None:  # both X and y is not provided.
                 self._index_len = len(self._indexes)

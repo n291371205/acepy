@@ -160,7 +160,7 @@ class StateIO:
         assert (isinstance(state, experiment_saver.state.State))
         self.__state_list.append(copy.deepcopy(state))
         if self.__check_flag:
-            res, err_st, err_ind = self.check_state()
+            res, err_st, err_ind = self.check_select_index()
             if res == -1:
                 warnings.warn(
                     'Checking validity fails, there is a queried instance not in set_U in '
@@ -176,7 +176,7 @@ class StateIO:
     def get_state(self, index):
         return copy.deepcopy(self.__state_list[index])
 
-    def check_state(self):
+    def check_select_index(self):
         """
         check:
         - Q has no repeating elements
@@ -307,7 +307,8 @@ class StateIO:
         cost = 0.0
         for state in self.__state_list:
             numqdata += len(state.get_value('select_index'))
-            cost += sum(state.get_value('cost'))
+            if 'cost' in state.keys():
+                cost += sum(state.get_value('cost'))
         return '''\rActive selection summary:
 _____________________________________________
 round: %d

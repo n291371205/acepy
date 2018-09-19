@@ -67,7 +67,7 @@ class Oracle(utils.base.BaseVirtualOracle):
             if not (len(examples) == len(labels)):
                 raise ValueError("Different length of labels and instances detected.")
             self._instance_flag = True
-        if not (len(indexes) == len(labels)):
+        if not (len(self._indexes) == len(labels)):
             raise ValueError("Different length of labels and indexes detected.")
 
         # several _indexes construct
@@ -149,6 +149,8 @@ class Oracle(utils.base.BaseVirtualOracle):
 
         indexes: array-like or object
             index of examples, should not in the oracle.
+            if update multiple entries to the oracle, a list or np.ndarray type is expected,
+            otherwise, it will be cheated as only one entry.
 
         examples: array-like, optional (default=None)
             array of examples, initialize with this parameter to turn
@@ -161,13 +163,10 @@ class Oracle(utils.base.BaseVirtualOracle):
         if not isinstance(indexes, (list, np.ndarray)):
             self._add_one_entry(labels, indexes, examples, cost)
         else:
-            if len(indexes) == 1:
-                self._add_one_entry(labels, indexes[0], examples, cost)
-            else:
-                assert (len(indexes) == len(labels))
-                for i in range(len(labels)):
-                    self._add_one_entry(labels[i], indexes[i], example=examples[i] if examples is not None else None,
-                                        cost=cost[i] if cost is not None else None)
+            assert (len(indexes) == len(labels))
+            for i in range(len(labels)):
+                self._add_one_entry(labels[i], indexes[i], example=examples[i] if examples is not None else None,
+                                    cost=cost[i] if cost is not None else None)
 
     def query_by_index(self, indexes):
         """Query function
