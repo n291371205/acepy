@@ -34,9 +34,12 @@ class State:
     def __init__(self, select_index, queried_label=None, cost=None, performance=None):
         self.__save_seq = dict()
         self.__save_seq['select_index'] = copy.deepcopy(select_index)
-        self.__save_seq['queried_label'] = copy.deepcopy(queried_label)
-        self.__save_seq['performance'] = copy.copy(performance)
-        self.__save_seq['cost'] = copy.copy(cost)
+        if queried_label is not None:
+            self.__save_seq['queried_label'] = copy.deepcopy(queried_label)
+        if performance is not None:
+            self.__save_seq['performance'] = copy.copy(performance)
+        if cost is not None:
+            self.__save_seq['cost'] = copy.copy(cost)
 
         if isinstance(select_index, (list, np.ndarray)):
             self.batch_size = len(select_index)
