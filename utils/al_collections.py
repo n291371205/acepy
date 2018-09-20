@@ -17,6 +17,7 @@ from utils.ace_warnings import *
 from utils.base import BaseCollection
 from utils.tools import _is_arraylike
 from sklearn.utils.validation import check_array
+from utils.tools import check_index_multilabel
 
 
 class IndexCollection(BaseCollection):
@@ -29,12 +30,14 @@ class IndexCollection(BaseCollection):
 
     Parameters
     ----------
-    data : list or np.ndarray , shape like [n_element]
+    data : list or np.ndarray or object, shape like [n_element]
         element should be int or tuple, if tuple, it may represent index
         of (sample,label) for instance-label pair query,
         (sample, feature) for feature query, (sample, sample) for active clustering;
         if int, it is treated as the index of example, and each query will return
         ALL labels of the selected example.
+        Note that, if multiple indexes are contained, a list or np.ndarray should be given.
+        Otherwise, it will be cheated as an object.
 
     Examples
     --------
@@ -48,7 +51,8 @@ class IndexCollection(BaseCollection):
         data: collections.Iterable
         """
         if data is not None:
-            assert (_is_arraylike(data))
+            if not isinstance(data, (list, np.ndarray)):
+                data = [data]
             self._innercontainer = list(np.unique([i for i in data], axis=0))
             if len(self._innercontainer) != len(data):
                 warnings.warn("There are %d same elements in the given data" % (len(data) - len(self._innercontainer)),
@@ -68,6 +72,9 @@ class IndexCollection(BaseCollection):
     @property
     def index(self):
         return copy.deepcopy(self._innercontainer)
+
+    def __getitem__(self, item):
+        return self._innercontainer.__getitem__(item)
 
     def pop(self):
         """Return the popped value. Raise KeyError if empty."""
@@ -112,22 +119,21 @@ class IndexCollection(BaseCollection):
 
     def difference_update(self, other):
         """ Remove all elements of another set from this set. """
-        if not _is_arraylike(other):
-            if isinstance(other, (list, collections.Iterable)):
-                other = list(other)
-            else:
-                other = [other]
+        if not isinstance(other, (list, np.ndarray, IndexCollection)):
+            other = [other]
         for item in other:
             self.discard(item)
         return self
 
     def update(self, other):
         """ Update a set with the union of itself and others. """
-        if not _is_arraylike(other):
-            if isinstance(other, (list, collections.Iterable)):
-                other = list(other)
-            else:
-                other = [other]
+        # if not _is_arraylike(other):
+        #     if isinstance(other, (list, collections.Iterable)):
+        #         other = list(other)
+        #     else:
+        #         other = [other]
+        if not isinstance(other, (list, np.ndarray, IndexCollection)):
+            other = [other]
         for item in other:
             self.add(item)
         return self
@@ -157,26 +163,149 @@ class MultiLabelIndexCollection(IndexCollection):
     Mainly solve the difference between index in querying all labels and specific labels
     """
 
+    def __init__(self, data=None, label_size=None):
+        """Initialize the container.
+
+        Parameters
+        ----------
+        data: collections.Iterable
+        """
+        if data is not None:
+            # check given indexes
+            data = check_index_multilabel(data)
+            data_len = np.array([len(i) for i in data])
+            if np.any(data_len == 2):
+                self.label_size = np.max([i[1] for i in data if len(i) == 2])
+            elif np.all(data_len == 1):
+                if label_size is None:
+                    raise ValueError(
+                        "Label_size can not be induced from fully labeled set, label_size must be provided.")
+                self.label_size = label_size
+            else:
+                raise ValueError(
+                    "All elements in indexes should be a tuple, with length = 1 (example_index, ) "
+                    "to query all labels or length = 2 (example_index, [label_indexes]) to query specific labels.")
+
+            # decompose all labels queries.
+            decomposed_data = []
+            for item in data:
+                if len(item) == 1:
+                    for i in range(self.label_size):
+                        decomposed_data.append((item[0], i))
+                else:
+                    decomposed_data.append(item)
+
+            self._innercontainer = set(decomposed_data)
+            if len(self._innercontainer) != len(decomposed_data):
+                warnings.warn(
+                    "There are %d same elements in the given data" % (len(data) - len(self._innercontainer)),
+                    category=RepeatElementWarning,
+                    stacklevel=3)
+        else:
+            self._innercontainer = set()
+            if label_size is None:
+                warnings.warn("This collection does not have a label_size value, set it manually or "
+                              "it will raise when decomposing indexes.")
+            self.label_size = label_size
+
+    @property
+    def index(self):
+        return list(self._innercontainer)
+
+    def set_label_size(self, label_size):
+        self.label_size = label_size
+
+    def add(self, key):
+        """add element.
+
+        Parameters
+        ----------
+        key: object
+            same type of the element already in the set.
+            Raise if unknown type is given.
+
+        value: object, optional (default=None)
+            supervised information given by oracle.
+        """
+        # check validation
+        assert(isinstance(key, tuple))
+        if len(key) == 1:
+            key = [(key[0], i) for i in range(self.label_size)]
+            return self.update(key)
+        if key in self._innercontainer:
+            warnings.warn("Adding element %s has already in the collection, skip." % (key.__str__()),
+                          category=RepeatElementWarning,
+                          stacklevel=3)
+        else:
+            self._innercontainer.add(key)
+        return self
+
+    def discard(self, value):
+        """Remove an element.  Do not raise an exception if absent."""
+        assert (isinstance(value, tuple))
+        if len(value) == 1:
+            value = [(value[0], i) for i in range(self.label_size)]
+            return self.difference_update(value)
+        if value not in self._innercontainer:
+            warnings.warn("Element %s to discard is not in the collection, skip." % (value.__str__()),
+                          category=RepeatElementWarning,
+                          stacklevel=3)
+        else:
+            self._innercontainer.discard(value)
+        return self
+
+    def difference_update(self, other):
+        """ Remove all elements of another set from this set. """
+        if isinstance(other, (list, np.ndarray, MultiLabelIndexCollection)):
+            for item in other:
+                if len(item) == 1:
+                    item = [(item[0], i) for i in range(self.label_size)]
+                    for iitem in item:
+                        self.discard(iitem)
+                else:
+                    self.discard(item)
+        elif isinstance(other, tuple):
+            self.discard(other)
+        else:
+            raise TypeError(
+                "A list or np.ndarray is expected if multiple indexes are "
+                "contained. Otherwise, a tuple should be provided")
+        return self
+
+    def update(self, other):
+        """ Update a set with the union of itself and others. """
+        if isinstance(other, (list, np.ndarray, MultiLabelIndexCollection)):
+            for item in other:
+                if len(item) == 1:
+                    item = [(item[0], i) for i in range(self.label_size)]
+                    for iitem in item:
+                        self.add(iitem)
+                else:
+                    self.add(item)
+        elif isinstance(other, tuple):
+            self.add(other)
+        else:
+            raise TypeError(
+                "A list or np.ndarray is expected if multiple indexes are "
+                "contained. Otherwise, a tuple should be provided")
+        return self
+
 
 if __name__ == '__main__':
     a = IndexCollection([1, 2, 2, 3])
     b = IndexCollection([1, 2, 2, 3])
-    c = set([1, 2, 3])
     print(a == b)
-    print(a == c)
     print(1 in a)
     a.add(3)
     a.add(4)
     print(a.pop())
     a.discard(5)
     a.discard(4)
-    a.update(set([2, 6, 7, 8]))
     a.update(IndexCollection([2, 9, 10]))
     for i in a:
         print(i)
     print(len(a))
     print(a)
-    a.difference_update(set([1, 200]))
     a.difference_update(IndexCollection([2, 100]))
     print(a)
 
@@ -191,3 +320,28 @@ if __name__ == '__main__':
     print(d)
     print(a.random_sampling(0.5))
     print(type(a.random_sampling(0.5)))
+
+    from data_process.al_split import split_multi_label
+    train_idx, test_idx, unlabel_idx, label_idx = split_multi_label(y=np.random.randint(0, 2, 800).reshape(100, -1),
+                                                                    initial_label_rate=0.15, partially_labeled=True)
+    a = MultiLabelIndexCollection(label_idx[0])
+    print(a)
+    a.update((0,4))
+    a.discard((0,4))
+    a.update([(0,4),(0,5)])
+    print(a)
+    a.update([(0, ), (0, 5)])
+    print(a)
+    a.difference_update([(0,)])
+    print(a)
+    train_idx, test_idx, unlabel_idx, label_idx = split_multi_label(y=np.random.randint(0, 2, 800).reshape(100, -1),
+                                                                    initial_label_rate=0.15, partially_labeled=False)
+    # b = MultiLabelIndexCollection(label_idx[0])
+
+    b = MultiLabelIndexCollection(label_idx[0], label_size=8)
+    print(b)
+    b.update((4,6))
+    b.difference_update((0,))
+    print(b)
+
+

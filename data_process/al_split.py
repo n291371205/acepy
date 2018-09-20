@@ -21,7 +21,7 @@ from utils.al_collections import IndexCollection
 from oracle.oracle import Oracle, OracleQueryMultiLabel
 from query_strategy.query_strategy import QueryInstanceUncertainty, QueryInstanceRandom
 from experiment_saver.state_io import StateIO
-from utils.tools import _check_matrix
+from utils.tools import check_matrix
 
 
 class ExperimentSetting:
@@ -38,11 +38,11 @@ class ExperimentSetting:
 
     Parameters
     ----------
+    y: array-like
+        labels of given data [n_samples, n_labels] or [n_samples]
+
     X: array-like, optional
         data matrix with [n_samples, n_features]
-
-    y: array-like, optional
-        labels of given data [n_samples, n_labels] or [n_samples]
 
     instance_indexes: array-like, optional (default=None)
         indexes of instances, it should be one-to-one correspondence of
@@ -94,7 +94,7 @@ class ExperimentSetting:
 
     """
 
-    def __init__(self, X=None, y=None, instance_indexes=None, model=None,
+    def __init__(self, y, X=None, instance_indexes=None, model=None,
                  query_type=None, test_ratio=0.3, initial_label_rate=0.05,
                  split_count=10, all_class=True, partially_labeled=False, performance='Accuracy', saving_path=None):
         if X is None and y is None and instance_indexes is None:
@@ -102,19 +102,13 @@ class ExperimentSetting:
         self._index_len = None
 
         # check and record parameters
-        if y is None:
-            warnings.warn("Label matrix is not given, Oracle class can not be initialized.",
-                          category=FunctionWarning)
-            self._label_flag = False
+        self._y = check_array(y, ensure_2d=False, dtype=None)
+        self._index_len = len(self._y)
+        ytype = type_of_target(y)
+        if ytype in ['multilabel-indicator', 'multilabel-sequences']:
+            self._target_type = 'multilabel'
         else:
-            self._label_flag = True
-            self._y = check_array(y, ensure_2d=False, dtype=None)
-            self._index_len = len(self._y)
-            ytype = type_of_target(y)
-            if ytype in ['multilabel-indicator', 'multilabel-sequences']:
-                self._target_type = 'multilabel'
-            else:
-                self._target_type = ytype
+            self._target_type = ytype
         if X is None:
             warnings.warn("Instances matrix or acceptable model is not given, The initial point can not "
                           "be calculated automatically.", category=FunctionWarning)
@@ -445,7 +439,7 @@ def split_multi_label(y=None, label_shape=None, test_ratio=0.3, initial_label_ra
         raise ValueError("Must provide one of y or label_shape.")
     data_shape = None
     if y is not None:
-        y = _check_matrix(y)
+        y = check_matrix(y)
         ytype = type_of_target(y)
         if ytype not in ['multilabel-indicator', 'multilabel-sequences']:
             raise ValueError("y must be a 2D array with the shape like [n_samples, n_labels]")

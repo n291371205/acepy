@@ -78,9 +78,6 @@ class BaseCollection(metaclass=ABCMeta):
     def __contains__(self, other):
         return other in self._innercontainer
 
-    def __getitem__(self, item):
-        return self._innercontainer.__getitem__(item)
-
     def __iter__(self):
         return iter(self._innercontainer)
 

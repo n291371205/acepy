@@ -12,7 +12,7 @@ import collections
 from sklearn.utils.validation import check_X_y
 
 
-def _check_index_multilabel(index):
+def check_index_multilabel(index):
     """check if the given index is legal."""
     if not isinstance(index, (list, np.ndarray)):
         index = [index]
@@ -24,7 +24,7 @@ def _check_index_multilabel(index):
     return index
 
 
-def _check_matrix(matrix):
+def check_matrix(matrix):
     """check if the given matrix is legal."""
     matrix = check_array(matrix, accept_sparse='csr', ensure_2d=False, order='C')
     if matrix.ndim != 2:
@@ -69,8 +69,8 @@ def get_labelmatrix_in_multilabel(index, label_matrix, unknown_element=0):
         index of examples correspond to the each row of Matrix_clip
     """
     # check validity
-    index = _check_index_multilabel(index)
-    label_matrix = _check_matrix(label_matrix)
+    index = check_index_multilabel(index)
+    label_matrix = check_matrix(label_matrix)
 
     ins_bound = label_matrix.shape[0]
     ele_bound = label_matrix.shape[1]
@@ -150,7 +150,7 @@ def get_Xy_in_multilabel(index, X, y, unknown_element=0):
         data matrix given index
     """
     # check validity
-    X = _check_matrix(X)
+    X = check_matrix(X)
     if not len(X) == len(y):
         raise ValueError("Different length of instances and labels found.")
 

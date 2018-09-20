@@ -33,6 +33,27 @@ class BaseDB(metaclass=ABCMeta):
     Also provide the function to return the feature
     and label matrix of labeled set for training
     """
+    def __getitem__(self, index):
+        """Same function with retrieve by index.
+
+        Raise if item is not in the index set.
+
+        Parameters
+        ----------
+        index: object
+            index of example and label
+
+        Returns
+        -------
+        example: np.ndarray
+            the example corresponding the index.
+
+        label: object
+            the label corresponding the index.
+            The type of returned object is the same with the
+            initializing.
+        """
+        return self.retrieve_by_indexes(index)
 
     @abstractmethod
     def add(self, select_index, label, cost, example=None):
@@ -193,28 +214,6 @@ class ElementKnowledgeDB(BaseDB):
 
     def __len__(self):
         return self._index_len
-
-    def __getitem__(self, index):
-        """Same function with retrieve by index.
-
-        Raise if item is not in the index set.
-
-        Parameters
-        ----------
-        index: object
-            index of example and label
-
-        Returns
-        -------
-        example: np.ndarray
-            the example corresponding the index.
-
-        label: object
-            the label corresponding the index.
-            The type of returned object is the same with the
-            initializing.
-        """
-        return self.retrieve_by_index(index)
 
     def add(self, select_index, label, cost, example=None):
         """add an element to the DB.
@@ -454,28 +453,6 @@ class MatrixKnowledgeDB(BaseDB):
 
     def __len__(self):
         return self._index_len
-
-    def __getitem__(self, index):
-        """Same function with retrieve by index.
-
-        Raise if item is not in the index set.
-
-        Parameters
-        ----------
-        index: object
-            index of example and label
-
-        Returns
-        -------
-        example: np.ndarray
-            the example corresponding the index.
-
-        label: object
-            the label corresponding the index.
-            The type of returned object is the same with the
-            initializing.
-        """
-        return self.retrieve_by_index(index)
 
     def add(self, label, select_index, cost, example=None):
         """add an element to the DB.
