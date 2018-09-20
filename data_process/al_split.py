@@ -6,6 +6,7 @@ Accept not only datamat, but also shape/list of instance name (for image dataset
 # Authors: Ying-Peng Tang
 # License: BSD 3 clause
 
+from __future__ import division
 import numpy as np
 import copy
 import os
@@ -20,6 +21,7 @@ from utils.al_collections import IndexCollection
 from oracle.oracle import Oracle, OracleQueryMultiLabel
 from query_strategy.query_strategy import QueryInstanceUncertainty, QueryInstanceRandom
 from experiment_saver.state_io import StateIO
+from utils.tools import _check_matrix
 
 
 class ExperimentSetting:
@@ -65,6 +67,16 @@ class ExperimentSetting:
     split_count: int, optional (default=10)
         random split data split_count times
 
+    all_class: bool, optional (default=True)
+        whether each split will contain at least one instance for each class.
+        If False, a totally random split will be performed.
+
+    partially_labeled: bool, optional (default=False)
+        Whether split the data as partially labeled in the multi-label setting.
+        If False, the labeled set is fully labeled, otherwise, only part of labels of each
+        instance will be labeled initialized.
+        Only available in multi-label setting.
+
     performance: str, optional (default='Accuracy')
         The performance index of the experiment.
 
@@ -84,7 +96,7 @@ class ExperimentSetting:
 
     def __init__(self, X=None, y=None, instance_indexes=None, model=None,
                  query_type=None, test_ratio=0.3, initial_label_rate=0.05,
-                 split_count=10, performance='Accuracy', saving_path=None):
+                 split_count=10, all_class=True, partially_labeled=False, performance='Accuracy', saving_path=None):
         if X is None and y is None and instance_indexes is None:
             raise ValueError("Must provide one of X, y or instance_indexes.")
         self._index_len = None
@@ -98,6 +110,11 @@ class ExperimentSetting:
             self._label_flag = True
             self._y = check_array(y, ensure_2d=False, dtype=None)
             self._index_len = len(self._y)
+            ytype = type_of_target(y)
+            if ytype in ['multilabel-indicator', 'multilabel-sequences']:
+                self._target_type = 'multilabel'
+            else:
+                self._target_type = ytype
         if X is None:
             warnings.warn("Instances matrix or acceptable model is not given, The initial point can not "
                           "be calculated automatically.", category=FunctionWarning)
@@ -145,13 +162,24 @@ class ExperimentSetting:
         self.test_ratio = test_ratio
         self.initial_label_rate = initial_label_rate
         # should support other query types in the future
-        self.train_idx, self.test_idx, self.unlabel_idx, self.label_idx = split(
-            X=self._X if self._instance_flag else None,
-            y=self._y if self._label_flag else None,
-            query_type=self.query_type, test_ratio=self.test_ratio,
-            initial_label_rate=self.initial_label_rate,
-            split_count=self.split_count,
-            instance_indexes=self._indexes)
+        if not (self._label_flag and self._target_type == 'multilabel'):
+            self.train_idx, self.test_idx, self.unlabel_idx, self.label_idx = split(
+                X=self._X if self._instance_flag else None,
+                y=self._y if self._label_flag else None,
+                query_type=self.query_type, test_ratio=self.test_ratio,
+                initial_label_rate=self.initial_label_rate,
+                split_count=self.split_count,
+                instance_indexes=self._indexes,
+                all_class=all_class)
+        else:
+            self.train_idx, self.test_idx, self.unlabel_idx, self.label_idx = split_multi_label(
+                y=self._y if self._label_flag else None,
+                test_ratio=self.test_ratio,
+                initial_label_rate=self.initial_label_rate,
+                split_count=self.split_count,
+                all_class=all_class,
+                partially_labeled=partially_labeled
+            )
         self.save_settings(saving_path)
 
     def get_split(self, round=None):
@@ -163,7 +191,7 @@ class ExperimentSetting:
             return copy.deepcopy(self.train_idx), copy.deepcopy(self.test_idx), self.unlabel_idx, self.label_idx
 
     def get_clean_oracle(self):
-        ytype =  type_of_target(self._y)
+        ytype = type_of_target(self._y)
         if ytype in ['multilabel-indicator', 'multilabel-sequences']:
             return OracleQueryMultiLabel(self._y)
         elif ytype in ['binary', 'multiclass']:
@@ -234,7 +262,7 @@ class ExperimentSetting:
 
 def split(X=None, y=None, instance_indexes=None, query_type=None, test_ratio=0.3, initial_label_rate=0.05,
           split_count=10, all_class=True, saving_path='.'):
-    """Split given data according to the config
+    """Split given data.
 
     Parameters
     ----------
@@ -281,7 +309,6 @@ def split(X=None, y=None, instance_indexes=None, query_type=None, test_ratio=0.3
 
     unlabel_idx: array-like
         index of unlabeling set, shape like [n_split_count, n_unlabeling_samples]
-
     """
     # check parameters
     if X is None and y is None and instance_indexes is None:
@@ -311,7 +338,7 @@ def split(X=None, y=None, instance_indexes=None, query_type=None, test_ratio=0.3
     label_idx = []
     unlabel_idx = []
     for i in range(split_count):
-        if not all_class:
+        if (not all_class) or y is None:
             rp = randperm(number_of_instance - 1)
             cutpoint = round((1 - test_ratio) * len(rp))
             tp_train = instance_indexes[rp[0:cutpoint]]
@@ -326,11 +353,6 @@ def split(X=None, y=None, instance_indexes=None, query_type=None, test_ratio=0.3
             if y is None:
                 raise ValueError("y must be provided when all_class flag is True.")
             y = check_array(y, ensure_2d=False, dtype=None)
-            ytype = type_of_target(y)
-            if ytype in ['multilabel-indicator', 'multilabel-sequences']:
-                multi_label_flag = True
-            elif ytype in ['binary', 'multiclass']:
-                multi_label_flag = False
             if y.ndim == 1:
                 label_num = len(np.unique(y))
             else:
@@ -356,17 +378,146 @@ def split(X=None, y=None, instance_indexes=None, query_type=None, test_ratio=0.3
                     temp = np.sum(y[label_id], axis=0)
                     if not np.any(temp == 0):
                         break
-            if not multi_label_flag:
-                train_idx.append(tp_train)
-                test_idx.append(instance_indexes[rp[cutpoint:]])
-                label_idx.append(tp_train[0:cutpointlabel])
-                unlabel_idx.append(tp_train[cutpointlabel:])
-            else:
-                train_idx.append([(i,) for i in tp_train])
-                test_idx.append([(i,) for i in instance_indexes[rp[cutpoint:]]])
-                label_idx.append([(i,) for i in tp_train[0:cutpointlabel]])
-                unlabel_idx.append([(i,) for i in tp_train[cutpointlabel:]])
+            train_idx.append(tp_train)
+            test_idx.append(instance_indexes[rp[cutpoint:]])
+            label_idx.append(tp_train[0:cutpointlabel])
+            unlabel_idx.append(tp_train[cutpointlabel:])
 
+    split_save(train_idx=train_idx, test_idx=test_idx, label_idx=label_idx,
+               unlabel_idx=unlabel_idx, path=saving_path)
+    return train_idx, test_idx, unlabel_idx, label_idx
+
+
+def split_multi_label(y=None, label_shape=None, test_ratio=0.3, initial_label_rate=0.05,
+                      split_count=10, all_class=True, partially_labeled=False, saving_path='.'):
+    """Split given label matrix in multi label setting.
+
+    Parameters
+    ----------
+    y: array-like, optional
+        labels of given data, shape like [n_samples, n_labels]
+
+    label_shape: tuple, optional (default=None)
+        the shape of y, should be a tuple with 2 elements.
+        The first one is the number of instances, and the other is the
+        number of labels.
+
+    test_ratio: float, optional (default=0.3)
+        ratio of test set
+
+    initial_label_rate: float, optional (default=0.05)
+        ratio of initial label set
+        e.g. initial_labelset*(1-test_ratio)*n_samples
+
+    split_count: int, optional (default=10)
+        random split data split_count times
+
+    all_class: bool, optional (default=True)
+        whether each split will contain at least one instance for each class.
+        If False, a totally random split will be performed.
+
+    partially_labeled: bool, optional (default=False)
+        Whether split the data as partially labeled in the multi-label setting.
+        If False, the labeled set is fully labeled, otherwise, only part of labels of each
+        instance will be labeled initialized.
+        Only available in multi-label setting.
+
+    saving_path: str, optional (default='.')
+
+    Returns
+    -------
+    train_idx: array-like
+        index of training set, shape like [n_split_count, n_training_samples]
+
+    test_idx: array-like
+        index of testing set, shape like [n_split_count, n_testing_samples]
+
+    label_idx: array-like
+        index of labeling set, shape like [n_split_count, n_labeling_samples]
+
+    unlabel_idx: array-like
+        index of unlabeling set, shape like [n_split_count, n_unlabeling_samples]
+
+    """
+
+    # check parameters
+    if y is None and label_shape is None:
+        raise ValueError("Must provide one of y or label_shape.")
+    data_shape = None
+    if y is not None:
+        y = _check_matrix(y)
+        ytype = type_of_target(y)
+        if ytype not in ['multilabel-indicator', 'multilabel-sequences']:
+            raise ValueError("y must be a 2D array with the shape like [n_samples, n_labels]")
+        data_shape = y.shape
+    if label_shape is not None:
+        if not isinstance(label_shape, tuple) and len(label_shape) == 2:
+            raise TypeError("the shape of y, should be a tuple with 2 elements."
+                            "The first one is the number of instances, and the other is the"
+                            "number of labels.")
+        data_shape = label_shape
+    instance_indexes = np.arange(data_shape[0])
+
+    # split
+    train_idx = []
+    test_idx = []
+    label_idx = []
+    unlabel_idx = []
+    for i in range(split_count):
+        if partially_labeled:
+            # split train test
+            rp = randperm(data_shape[0] - 1)
+            cutpoint = round((1 - test_ratio) * len(rp))
+            tp_train = instance_indexes[rp[0:cutpoint]]
+
+            # split label & unlabel
+            train_size = len(tp_train)
+            lab_ind = randperm((0, train_size * data_shape[1] - 1), round(initial_label_rate * train_size))
+            if all_class:
+                if round(initial_label_rate * train_size) < data_shape[1]:
+                    raise ValueError("The initial rate is too small to guarantee that each "
+                                     "split will contain at least one instance for each class.")
+                while len(np.unique([item % data_shape[1] for item in lab_ind])) != data_shape[1]:
+                    # split train test
+                    rp = randperm(data_shape[0] - 1)
+                    cutpoint = round((1 - test_ratio) * len(rp))
+                    tp_train = instance_indexes[rp[0:cutpoint]]
+                    # split label & unlabel
+                    train_size = len(tp_train)
+                    lab_ind = randperm((0, train_size * data_shape[1] - 1), round(initial_label_rate * train_size))
+            train_idx.append(tp_train)
+            test_idx.append(instance_indexes[rp[cutpoint:]])
+            unlab_ind = set(np.arange(train_size * data_shape[1]))
+            unlab_ind.difference_update(set(lab_ind))
+            label_idx.append([(tp_train[item // data_shape[1]], item % data_shape[1]) for item in lab_ind])
+            unlabel_idx.append([(tp_train[item // data_shape[1]], item % data_shape[1]) for item in unlab_ind])
+        else:
+            rp = randperm(data_shape[0] - 1)
+            cutpoint = round((1 - test_ratio) * len(rp))
+            tp_train = instance_indexes[rp[0:cutpoint]]
+
+            cutpoint = round(initial_label_rate * len(tp_train))
+            if cutpoint <= 1:
+                cutpoint = 1
+            if all_class:
+                if cutpoint < data_shape[1]:
+                    raise ValueError(
+                        "The initial rate is too small to guarantee that each "
+                        "split will contain at least one instance-label pair for each class.")
+                while 1:
+                    label_id = tp_train[0:cutpoint]
+                    temp = np.sum(y[label_id], axis=0)
+                    if not np.any(temp == 0):
+                        break
+                    rp = randperm(data_shape[0] - 1)
+                    cutpoint = round((1 - test_ratio) * len(rp))
+                    tp_train = instance_indexes[rp[0:cutpoint]]
+
+                    cutpoint = round(initial_label_rate * len(tp_train))
+            train_idx.append(tp_train)
+            test_idx.append(instance_indexes[rp[cutpoint:]])
+            label_idx.append([(i,) for i in tp_train[0:cutpoint]])
+            unlabel_idx.append([(i,) for i in tp_train[cutpoint:]])
     split_save(train_idx=train_idx, test_idx=test_idx, label_idx=label_idx,
                unlabel_idx=unlabel_idx, path=saving_path)
     return train_idx, test_idx, unlabel_idx, label_idx
@@ -421,10 +572,16 @@ def split_save(train_idx, test_idx, label_idx, unlabel_idx, path):
 
 
 if __name__ == '__main__':
-    # train_idx, test_idx, label_idx, unlabel_idx = split(X=np.random.random((10, 10)), y=np.random.randint(0, 10, 10),
-    #                                                     config=QueryConfig())
-    # print(train_idx)
-    # print(test_idx)
-    # print(label_idx)
-    # print(unlabel_idx)
+    train_idx, test_idx, unlabel_idx, label_idx = split(X=np.random.random((10, 10)), y=np.random.randn(10, 10),
+                                                        all_class=False)
+    print(train_idx)
+    print(test_idx)
+    print(label_idx)
+    print(unlabel_idx)
+    train_idx, test_idx, unlabel_idx, label_idx = split_multi_label(y=np.random.randint(0, 2, 800).reshape(100, -1),
+                                                                    initial_label_rate=0.15, partially_labeled=True)
+    print(train_idx)
+    print(test_idx)
+    print(label_idx)
+    print(unlabel_idx)
     pass

@@ -435,7 +435,7 @@ class OracleQueryMultiLabel(Oracle):
                 label_ind = [i for i in range(self._label_shape[1])]
             else:
                 if isinstance(k[1], collections.Iterable):
-                    label_ind = [i for i in k[1] if 0 <= k[1] < self._label_shape[1]]
+                    label_ind = [i for i in k[1] if 0 <= i < self._label_shape[1]]
                 else:
                     assert (0 <= k[1] < self._label_shape[1])
                     label_ind = [k[1]]

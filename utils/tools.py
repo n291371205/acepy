@@ -91,14 +91,14 @@ def get_labelmatrix_in_multilabel(index, label_matrix, unknown_element=0):
         if example_ind in index_arr:
             ind_row = index_arr.index(example_ind)
         else:
-            index_arr.append(current_rows)
+            index_arr.append(example_ind)
             ind_row = -1  # new row
             current_rows += 1
         if k_len == 1:  # all labels
             label_ind = [i for i in range(ele_bound)]
         else:
             if isinstance(k[1], collections.Iterable):
-                label_ind = [i for i in k[1] if 0 <= k[1] < ele_bound]
+                label_ind = [i for i in k[1] if 0 <= i < ele_bound]
             else:
                 assert (0 <= k[1] < ele_bound)
                 label_ind = [k[1]]
@@ -110,7 +110,7 @@ def get_labelmatrix_in_multilabel(index, label_matrix, unknown_element=0):
             if label_indexed is None:
                 label_indexed = tmp.copy()
             else:
-                np.append(label_indexed, tmp, axis=0)
+                label_indexed = np.append(label_indexed, tmp, axis=0)
         else:
             label_indexed[ind_row, label_ind] = label_matrix[example_ind, label_ind]
     return label_indexed, index_arr
@@ -240,3 +240,8 @@ def _is_arraylike(x):
 if __name__ == '__main__':
     a = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
     print(get_gaussian_kernel_mat(a))
+    print()
+    lm = np.random.randn(2, 4)
+    print(lm)
+    print(get_labelmatrix_in_multilabel([(0,), (1, 1), (1, 2)], lm))
+    print(get_labelmatrix_in_multilabel([(1, (0, 1)), (0, [1, 2]), (1, 2)], lm))

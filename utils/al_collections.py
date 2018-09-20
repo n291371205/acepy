@@ -151,6 +151,13 @@ class IndexCollection(BaseCollection):
         return IndexCollection([self.index[i] for i in perm])
 
 
+class MultiLabelIndexCollection(IndexCollection):
+    """Class for multi-label index.
+
+    Mainly solve the difference between index in querying all labels and specific labels
+    """
+
+
 if __name__ == '__main__':
     a = IndexCollection([1, 2, 2, 3])
     b = IndexCollection([1, 2, 2, 3])
