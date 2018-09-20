@@ -61,6 +61,7 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
         if X is not None and y is not None:
             self.X, self.y = check_X_y(X, y, accept_sparse='csc', multi_output=True)
         else:
+            # check validity and calculate shape etc.
             self.X = X
             self.y = y
 
@@ -164,6 +165,7 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
 
         if self.measure == 'entropy':
             # calc entropy
+            pv[pv <= 0] = 0.000001
             entro = [-np.sum(vec * np.log(vec)) for vec in pv]
             assert (len(np.shape(entro)) == 1)
             argentro = np.argsort(entro)
@@ -210,7 +212,7 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
             raise TypeError('model object must implement predict_proba methods in %s measure.' % self.measure)
         pv = model.predict_proba(unlabel_x)
         if not isinstance(pv, np.ndarray):
-            pv = np.array(pv)
+            pv = np.asarray(pv)
         spv = np.shape(pv)
         if len(spv) != 2 or spv[1] == 1:
             raise ValueError('2d array with [n_samples, n_class] is expected, but received: \n%s' % str(pv))
@@ -232,7 +234,7 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
             1d array, entropy for each instance
         """
         if not isinstance(predict_proba, np.ndarray):
-            pv = np.array(predict_proba)
+            pv = np.asarray(predict_proba)
         spv = np.shape(pv)
         if len(spv) != 2 or spv[1] == 1:
             raise ValueError('2d array with the shape of [n_samples, n_class]'

@@ -17,7 +17,7 @@ from sklearn.utils.validation import check_X_y
 from sklearn.utils.multiclass import unique_labels, is_multilabel, check_classification_targets, type_of_target
 from utils.ace_warnings import *
 from utils.al_collections import IndexCollection
-from oracle.oracle import Oracle
+from oracle.oracle import Oracle, OracleQueryMultiLabel
 from query_strategy.query_strategy import QueryInstanceUncertainty, QueryInstanceRandom
 from experiment_saver.state_io import StateIO
 
@@ -163,7 +163,11 @@ class ExperimentSetting:
             return copy.deepcopy(self.train_idx), copy.deepcopy(self.test_idx), self.unlabel_idx, self.label_idx
 
     def get_clean_oracle(self):
-        return Oracle(self._y)
+        ytype =  type_of_target(self._y)
+        if ytype in ['multilabel-indicator', 'multilabel-sequences']:
+            return OracleQueryMultiLabel(self._y)
+        elif ytype in ['binary', 'multiclass']:
+            return Oracle(self._y)
 
     def get_saver(self, round):
         assert (0 <= round < self.split_count)
@@ -322,8 +326,15 @@ def split(X=None, y=None, instance_indexes=None, query_type=None, test_ratio=0.3
             if y is None:
                 raise ValueError("y must be provided when all_class flag is True.")
             y = check_array(y, ensure_2d=False, dtype=None)
+            ytype = type_of_target(y)
+            if ytype in ['multilabel-indicator', 'multilabel-sequences']:
+                multi_label_flag = True
+            elif ytype in ['binary', 'multiclass']:
+                multi_label_flag = False
             if y.ndim == 1:
                 label_num = len(np.unique(y))
+            else:
+                label_num = y.shape[1]
             if round((1 - test_ratio) * initial_label_rate * number_of_instance) < label_num:
                 raise ValueError(
                     "The initial rate is too small to guarantee that each "
@@ -345,11 +356,16 @@ def split(X=None, y=None, instance_indexes=None, query_type=None, test_ratio=0.3
                     temp = np.sum(y[label_id], axis=0)
                     if not np.any(temp == 0):
                         break
-
-            train_idx.append(tp_train)
-            test_idx.append(instance_indexes[rp[cutpoint:]])
-            label_idx.append(tp_train[0:cutpointlabel])
-            unlabel_idx.append(tp_train[cutpointlabel:])
+            if not multi_label_flag:
+                train_idx.append(tp_train)
+                test_idx.append(instance_indexes[rp[cutpoint:]])
+                label_idx.append(tp_train[0:cutpointlabel])
+                unlabel_idx.append(tp_train[cutpointlabel:])
+            else:
+                train_idx.append([(i,) for i in tp_train])
+                test_idx.append([(i,) for i in instance_indexes[rp[cutpoint:]]])
+                label_idx.append([(i,) for i in tp_train[0:cutpointlabel]])
+                unlabel_idx.append([(i,) for i in tp_train[cutpointlabel:]])
 
     split_save(train_idx=train_idx, test_idx=test_idx, label_idx=label_idx,
                unlabel_idx=unlabel_idx, path=saving_path)

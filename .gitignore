@@ -2,8 +2,10 @@
 /paper
 /dataset
 __pycache__
+AL_result
 abandoned_code.py
 *.pptx
 *.ppt
 *.doc
 *.docx
+*.pkl
