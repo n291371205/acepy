@@ -69,9 +69,9 @@ for round in range(5):
 ea.add_method(ae)
 
 # random
-from query_strategy.query_strategy import QueryInstanceRandom
+from query_strategy.query_strategy import QueryRandom
 
-qs = QueryInstanceRandom()
+qs = QueryRandom()
 ae = AlExperiment(method_name='random')
 
 for round in range(5):

@@ -244,7 +244,7 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
         return entropy
 
 
-class QueryInstanceRandom(utils.base.BaseQueryStrategy):
+class QueryRandom(utils.base.BaseQueryStrategy):
     """
     Randomly sample a batch of _indexes.
     """

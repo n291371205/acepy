@@ -80,8 +80,8 @@ class StateIO:
             assert (isinstance(init_U, collections.Iterable))
             assert (isinstance(init_L, collections.Iterable))
             assert (isinstance(round, int) and round >= 0)
-            if not (len(train_idx) == len(init_L) + len(init_U)):
-                warnings.warn("Length of train_idx is not equal len(init_L) + len(init_U).")
+            # if not (len(train_idx) == len(init_L) + len(init_U)):
+            #     warnings.warn("Length of train_idx is not equal len(init_L) + len(init_U).")
 
         self.round = round
         self.train_idx = copy.copy(train_idx)

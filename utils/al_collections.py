@@ -175,7 +175,7 @@ class MultiLabelIndexCollection(IndexCollection):
             data = check_index_multilabel(data)
             data_len = np.array([len(i) for i in data])
             if np.any(data_len == 2):
-                self.label_size = np.max([i[1] for i in data if len(i) == 2])
+                self.label_size = np.max([i[1] for i in data if len(i) == 2]) + 1
             elif np.all(data_len == 1):
                 if label_size is None:
                     raise ValueError(
@@ -193,7 +193,13 @@ class MultiLabelIndexCollection(IndexCollection):
                     for i in range(self.label_size):
                         decomposed_data.append((item[0], i))
                 else:
-                    decomposed_data.append(item)
+                    if isinstance(item[1], collections.Iterable):
+                        label_ind = [i for i in item[1] if 0 <= i < self.label_size]
+                    else:
+                        assert (0 <= item[1] < self.label_size)
+                        label_ind = [item[1]]
+                    for j in range(len(label_ind)):
+                        decomposed_data.append((item[0], label_ind[j]))
 
             self._innercontainer = set(decomposed_data)
             if len(self._innercontainer) != len(decomposed_data):
@@ -263,7 +269,13 @@ class MultiLabelIndexCollection(IndexCollection):
                     for iitem in item:
                         self.discard(iitem)
                 else:
-                    self.discard(item)
+                    if isinstance(item[1], collections.Iterable):
+                        label_ind = [i for i in item[1] if 0 <= i < self.label_size]
+                    else:
+                        assert (0 <= item[1] < self.label_size)
+                        label_ind = [item[1]]
+                    for j in range(len(label_ind)):
+                        self.discard((item[0], label_ind[j]))
         elif isinstance(other, tuple):
             self.discard(other)
         else:
@@ -281,7 +293,13 @@ class MultiLabelIndexCollection(IndexCollection):
                     for iitem in item:
                         self.add(iitem)
                 else:
-                    self.add(item)
+                    if isinstance(item[1], collections.Iterable):
+                        label_ind = [i for i in item[1] if 0 <= i < self.label_size]
+                    else:
+                        assert (0 <= item[1] < self.label_size)
+                        label_ind = [item[1]]
+                    for j in range(len(label_ind)):
+                        self.add((item[0], label_ind[j]))
         elif isinstance(other, tuple):
             self.add(other)
         else:
@@ -324,6 +342,7 @@ if __name__ == '__main__':
     from data_process.al_split import split_multi_label
     train_idx, test_idx, unlabel_idx, label_idx = split_multi_label(y=np.random.randint(0, 2, 800).reshape(100, -1),
                                                                     initial_label_rate=0.15, partially_labeled=True)
+    print(label_idx)
     a = MultiLabelIndexCollection(label_idx[0])
     print(a)
     a.update((0,4))

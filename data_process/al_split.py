@@ -17,9 +17,9 @@ from sklearn.utils.validation import check_array
 from sklearn.utils.validation import check_X_y
 from sklearn.utils.multiclass import unique_labels, is_multilabel, check_classification_targets, type_of_target
 from utils.ace_warnings import *
-from utils.al_collections import IndexCollection
+from utils.al_collections import IndexCollection, MultiLabelIndexCollection
 from oracle.oracle import Oracle, OracleQueryMultiLabel
-from query_strategy.query_strategy import QueryInstanceUncertainty, QueryInstanceRandom
+from query_strategy.query_strategy import QueryInstanceUncertainty, QueryRandom
 from experiment_saver.state_io import StateIO
 from utils.tools import check_matrix
 
@@ -104,6 +104,7 @@ class ExperimentSetting:
         # check and record parameters
         self._y = check_array(y, ensure_2d=False, dtype=None)
         self._index_len = len(self._y)
+        self._label_num = len(unique_labels(self._y))
         ytype = type_of_target(y)
         if ytype in ['multilabel-indicator', 'multilabel-sequences']:
             self._target_type = 'multilabel'
@@ -117,9 +118,8 @@ class ExperimentSetting:
             self._instance_flag = True
             self._X = check_array(X, accept_sparse='csr', ensure_2d=True, order='C')
             n_samples = self._X.shape[0]
-            if self._label_flag:
-                if n_samples != self._index_len:
-                    raise ValueError("Different length of instances and labels found.")
+            if n_samples != self._index_len:
+                raise ValueError("Different length of instances and labels found.")
             else:
                 self._index_len = n_samples
         if instance_indexes is None:
@@ -156,7 +156,7 @@ class ExperimentSetting:
         self.test_ratio = test_ratio
         self.initial_label_rate = initial_label_rate
         # should support other query types in the future
-        if not (self._label_flag and self._target_type == 'multilabel'):
+        if self._target_type != 'multilabel':
             self.train_idx, self.test_idx, self.unlabel_idx, self.label_idx = split(
                 X=self._X if self._instance_flag else None,
                 y=self._y if self._label_flag else None,
@@ -167,7 +167,7 @@ class ExperimentSetting:
                 all_class=all_class)
         else:
             self.train_idx, self.test_idx, self.unlabel_idx, self.label_idx = split_multi_label(
-                y=self._y if self._label_flag else None,
+                y=self._y,
                 test_ratio=self.test_ratio,
                 initial_label_rate=self.initial_label_rate,
                 split_count=self.split_count,
@@ -179,8 +179,13 @@ class ExperimentSetting:
     def get_split(self, round=None):
         if round is not None:
             assert (0 <= round < self.split_count)
-            return copy.copy(self.train_idx[round]), copy.copy(self.test_idx[round]), IndexCollection(
-                self.unlabel_idx[round]), IndexCollection(self.label_idx[round])
+            if self._target_type != 'multilabel':
+                return copy.copy(self.train_idx[round]), copy.copy(self.test_idx[round]), IndexCollection(
+                    self.unlabel_idx[round]), IndexCollection(self.label_idx[round])
+            else:
+                return copy.copy(self.train_idx[round]), copy.copy(self.test_idx[round]), MultiLabelIndexCollection(
+                    self.unlabel_idx[round], self._label_num), MultiLabelIndexCollection(self.label_idx[round],
+                                                                                         self._label_num)
         else:
             return copy.deepcopy(self.train_idx), copy.deepcopy(self.test_idx), self.unlabel_idx, self.label_idx
 
@@ -194,7 +199,7 @@ class ExperimentSetting:
     def get_saver(self, round):
         assert (0 <= round < self.split_count)
         train_id, test_id, Ucollection, Lcollection = self.get_split(round)
-        if self._label_flag and self._instance_flag and self._model_flag:
+        if self._instance_flag and self._model_flag:
             # performance is not implemented yet.
             # return StateIO(round, train_id, test_id, Ucollection, Lcollection, initial_point=accuracy)
             return StateIO(round, train_id, test_id, Ucollection, Lcollection)
@@ -205,7 +210,7 @@ class ExperimentSetting:
         return QueryInstanceUncertainty(X=self._X, y=self._y, measure=measure, scenario=scenario)
 
     def random_selection(self):
-        return QueryInstanceRandom()
+        return QueryRandom()
 
     def save_settings(self, saving_path):
         """Save the experiment settings to file for auditting or loading for other methods.
