@@ -38,7 +38,7 @@ for round in range(5):
     saver = StateIO(round, train_id, test_id, Ucollection, Lcollection, initial_point=accuracy)
     # saver = StateIO(round, train_id, test_id, Ucollection, Lcollection)
     while len(Ucollection) > 10:
-        select_index = qs.select(Lcollection, Ucollection, reg)
+        select_index = qs.select(Ucollection, reg)
         # accerlate version is available
         # sub_U = Ucollection.random_sampling()
         values, costs = oracle.query_by_index(select_index)
@@ -54,7 +54,7 @@ for round in range(5):
         accuracy = sum(pred == y[test_id]) / len(test_id)
 
         # save intermediate results
-        st = State(select_index, values, costs, accuracy)
+        st = State(select_index=select_index, queried_label=values, cost=costs, performance=accuracy)
         # add user defined information
         # st.add_element(key='sub_ind', value=sub_ind)
         saver.add_state(st)
@@ -103,7 +103,7 @@ for round in range(5):
         accuracy = sum(pred == y[test_id]) / len(test_id)
 
         # save intermediate results
-        st = State(select_index, values, costs, accuracy)
+        st = State(select_index=select_index, queried_label=values, cost=costs, performance=accuracy)
         # add user defined information
         # st.add_element(key='sub_ind', value=sub_ind)
         saver.add_state(st)
@@ -152,7 +152,7 @@ for round in range(5):
         accuracy = sum(pred == y[test_id]) / len(test_id)
 
         # save intermediate results
-        st = State(select_index, values, costs, accuracy)
+        st = State(select_index=select_index, queried_label=values, cost=costs, performance=accuracy)
         # add user defined information
         # st.add_element(key='sub_ind', value=sub_ind)
         saver.add_state(st)
@@ -200,7 +200,7 @@ for round in range(5):
         accuracy = sum(pred == y[test_id]) / len(test_id)
 
         # save intermediate results
-        st = State(select_index, values, costs, accuracy)
+        st = State(select_index=select_index, queried_label=values, cost=costs, performance=accuracy)
         # add user defined information
         # st.add_element(key='sub_ind', value=sub_ind)
         saver.add_state(st)

@@ -21,7 +21,7 @@ train_id, test_id, Ucollection, Lcollection = saver.recovery(5)
 reg.fit(X=X[Lcollection.index, :], y=y[Lcollection.index])
 
 while len(Ucollection)>10:
-    select_index = qs.select(Lcollection,Ucollection,reg,batch_size=2)
+    select_index = qs.select(Ucollection,reg,batch_size=2)
     # accerlate version is available
     # sub_U = Ucollection.random_sampling()
     values, costs = oracle.query_by_index(select_index)
@@ -37,7 +37,7 @@ while len(Ucollection)>10:
     accuracy = sum(pred == y[test_id])
 
     # save intermediate results
-    st = State(select_index, values, costs, accuracy)
+    st = State(select_index=select_index, queried_label=values, cost=costs, performance=accuracy)
     # add user defined information
     # st.add_element(key='sub_ind', value=sub_ind)
     saver.add_state(st)

@@ -308,7 +308,7 @@ class StateIO:
         for state in self.__state_list:
             numqdata += len(state.get_value('select_index'))
             if 'cost' in state.keys():
-                cost += sum(state.get_value('cost'))
+                cost += np.sum(state.get_value('cost'))
         return '''\rActive selection summary:
 _____________________________________________
 round: %d
@@ -319,6 +319,9 @@ cost: %.2f
 saving path: %s
 ''' % (self.round, len(self.init_L), 100 * len(self.init_L) / (len(self.init_L) + len(self.init_U)),
        len(self.__state_list), numqdata, 100 * numqdata / len(self.init_U), cost, self.saving_path)
+
+class StateIOMultiLabel(StateIO):
+    pass
 
 
 if __name__ == '__main__':

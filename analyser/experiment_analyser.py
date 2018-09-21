@@ -123,7 +123,7 @@ class ExperimentAnalyser:
             if ip is not None:
                 tmp.insert(0, ip)
             ex_data.append(tmp)
-        return round_idx, np.array(ex_data)  # in case that when multi-threading, index of round is unordered
+        return round_idx, np.asarray(ex_data)  # in case that when multi-threading, index of round is unordered
 
     def check_plotting(self):
         """

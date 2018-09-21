@@ -35,11 +35,11 @@ for round in range(5):
         # print(db.retrieve_by_examples(X[Lcollection.index, :]))
 
         # update model
-        reg.fit(X=db.get_examples(), y=y[Lcollection.index])
+        reg.fit(X=db.get_examples(), y=db.get_labels())
         pred = reg.predict(X[test_id, :])
         accuracy = sum(pred == y[test_id]) / len(test_id)
 
-        st = State(select_index, accuracy)
+        st = State(select_index=select_index, performance=accuracy)
         saver.add_state(st)
         saver.save()
     ae.add_fold(saver)
