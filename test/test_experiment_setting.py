@@ -21,9 +21,8 @@ ae = AlExperiment(method_name='uncertainty')
 for round in range(5):
     saver = es.get_saver(round)
     train_id, test_id, Ucollection, Lcollection= es.get_split(round)
-    db = MatrixKnowledgeDB(labels=y[Lcollection.index,:], examples=X[Lcollection.index,:], indexes=Lcollection.index)
-    print(db.get_labels())
-    reg.fit(X=db.get_examples(), y=y[Lcollection.index])
+    db = es.get_knowledge_db(round)
+    reg.fit(X=db.get_examples(), y=db.get_labels())
 
     while len(Ucollection) > 10:
         select_index = qs.select(Ucollection, reg)

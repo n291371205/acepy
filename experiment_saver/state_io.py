@@ -320,6 +320,7 @@ saving path: %s
 ''' % (self.round, len(self.init_L), 100 * len(self.init_L) / (len(self.init_L) + len(self.init_U)),
        len(self.__state_list), numqdata, 100 * numqdata / len(self.init_U), cost, self.saving_path)
 
+
 class StateIOMultiLabel(StateIO):
     pass
 

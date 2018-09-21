@@ -22,6 +22,7 @@ from oracle.oracle import Oracle, OracleQueryMultiLabel
 from query_strategy.query_strategy import QueryInstanceUncertainty, QueryRandom
 from experiment_saver.state_io import StateIO
 from utils.tools import check_matrix
+from utils.knowledge_db import MatrixKnowledgeDB, ElementKnowledgeDB
 
 
 class ExperimentSetting:
@@ -205,6 +206,15 @@ class ExperimentSetting:
             return StateIO(round, train_id, test_id, Ucollection, Lcollection)
         else:
             return StateIO(round, train_id, test_id, Ucollection, Lcollection)
+
+    def get_knowledge_db(self, round):
+        assert (0 <= round < self.split_count)
+        train_id, test_id, Ucollection, Lcollection = self.get_split(round)
+        if self._target_type != 'multilabel':
+            return MatrixKnowledgeDB(labels=self._y[Lcollection.index], examples=self._X[Lcollection.index, :],
+                                     indexes=Lcollection.index)
+        else:
+            raise NotImplementedError("Knowledge DB for multi label is not implemented yet.")
 
     def uncertainty_selection(self, measure='entropy', scenario='pool'):
         return QueryInstanceUncertainty(X=self._X, y=self._y, measure=measure, scenario=scenario)
