@@ -36,6 +36,7 @@ class IndexCollection(BaseCollection):
         (sample, feature) for feature query, (sample, sample) for active clustering;
         if int, it is treated as the index of example, and each query will return
         ALL labels of the selected example.
+
         Note that, if multiple indexes are contained, a list or np.ndarray should be given.
         Otherwise, it will be cheated as an object.
 

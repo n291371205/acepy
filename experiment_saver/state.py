@@ -32,6 +32,8 @@ class State:
 
     def __init__(self, select_index, performance, queried_label=None, cost=None):
         self.__save_seq = dict()
+        if not isinstance(select_index, (list, np.ndarray)):
+            select_index = [select_index]
         self.__save_seq['select_index'] = copy.deepcopy(select_index)
         self.__save_seq['performance'] = copy.copy(performance)
         if queried_label is not None:
