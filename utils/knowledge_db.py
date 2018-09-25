@@ -9,165 +9,19 @@ labeled set for training
 # Authors: Ying-Peng Tang
 # License: BSD 3 clause
 from __future__ import division
-import copy
-import numpy as np
 
-import collections
-from abc import ABCMeta, abstractmethod
-from utils.tools import _is_arraylike
+import numpy as np
 from sklearn.utils.validation import check_array
+
 from utils.ace_warnings import *
+from utils.base import BaseDB
+from utils.tools import _is_arraylike
 
 "Using a factory class to generate the appropriate DB"
 
 
 class KnowledgeDB:
     pass
-
-
-class BaseDB(metaclass=ABCMeta):
-    """Knowledge database
-    Have the similar function with oracle
-    but retrieving from DB will not incur a cost
-
-    Also provide the function to return the feature
-    and label matrix of labeled set for training
-    """
-    def __getitem__(self, index):
-        """Same function with retrieve by index.
-
-        Raise if item is not in the index set.
-
-        Parameters
-        ----------
-        index: object
-            index of example and label
-
-        Returns
-        -------
-        example: np.ndarray
-            the example corresponding the index.
-
-        label: object
-            the label corresponding the index.
-            The type of returned object is the same with the
-            initializing.
-        """
-        return self.retrieve_by_indexes(index)
-
-    @abstractmethod
-    def add(self, select_index, label, cost, example=None):
-        """add an element to the DB.
-
-        Parameters
-        ----------
-        select_index: int or tuple
-            the selected index in active learning.
-
-        label: object
-            supervised information given by oracle.
-
-        cost: object, optional (default=1)
-            costs produced by query, given by the oracle.
-
-        example: object
-            same type of the element already in the set.
-            Raise if unknown type is given.
-        """
-        pass
-
-    @abstractmethod
-    def discard(self, index=None, example=None):
-        """discard element either by index or example.
-
-        Must provide at least one of them.
-
-        Parameters
-        ----------
-        index: int or tuple
-            index to discard.
-
-        example: object
-            example to discard, must be one of the data base.
-        """
-        pass
-
-    @abstractmethod
-    def update_query(self, labels, indexes, cost, examples=None):
-        """Updating data base with queried information.
-
-        Parameters
-        ----------
-        labels: array-like or object
-            labels to be updated.
-
-        indexes: array-like or object
-            if multiple example-label pairs are provided, it should be a list or np.ndarray type
-            otherwise, it will be treated as only one pair for adding.
-
-        cost: array-like or object
-            cost corresponds to the query.
-
-        examples: array-like or object
-            examples to be updated.
-        """
-        pass
-
-    @abstractmethod
-    def retrieve_by_indexes(self, indexes):
-        """retrieve by indexes
-
-        Parameters
-        ----------
-        indexes: array-like or object
-            if 2 or more indexes to retrieve, a list or np.ndarray is expected
-            otherwise, it will be treated as only one index.
-
-        Returns
-        -------
-        X,y: array-like
-            the retrieved data
-        """
-        pass
-
-    @abstractmethod
-    def retrieve_by_examples(self, examples):
-        """retrieve by examples
-
-        Parameters
-        ----------
-        examples: array-like or object
-            if 2 or more examples to retrieve, a 2D array is expected
-            otherwise, it will be treated as only one index.
-
-        Returns
-        -------
-        X,y: array-like
-            the retrieved data
-        """
-        pass
-
-    @abstractmethod
-    def get_examples(self):
-        """Get all examples in the data base
-
-        If this object is a MatrixKnowledgeDB, it will return the feature matrix,
-        otherwise, A dict will be returned.
-        """
-        pass
-
-    @abstractmethod
-    def get_labels(self, *args):
-        """Get all labels in the data base
-
-        If this object is a MatrixKnowledgeDB, it will return the label matrix,
-        otherwise, unknown elements will be set to a specific value (query a single label in multi-label setting).
-        """
-        pass
-
-    @abstractmethod
-    def clear(self):
-        pass
 
 
 class ElementKnowledgeDB(BaseDB):
@@ -563,14 +417,14 @@ class MatrixKnowledgeDB(BaseDB):
         # check if in the dict?
         if not isinstance(indexes, (list, np.ndarray)):
             ind = np.argwhere(self._indexes == indexes)  # will return empty array if not found.
-            return self._X[ind, ] if self._instance_flag else None, self._y[ind,]
+            return self._X[ind,] if self._instance_flag else None, self._y[ind,]
         else:
             if len(indexes) == 1:
                 ind = np.argwhere(self._indexes == indexes[0]).flatten()
-                return self._X[ind, ] if self._instance_flag else None, self._y[ind, ]
+                return self._X[ind,] if self._instance_flag else None, self._y[ind,]
             else:
                 ind = [np.argwhere(self._indexes == indexes[i]).flatten() for i in range(len(indexes))]
-                return self._X[ind, ] if self._instance_flag else None, self._y[ind, ]
+                return self._X[ind,] if self._instance_flag else None, self._y[ind,]
 
     def retrieve_by_examples(self, examples):
         """retrieve by examples
@@ -599,7 +453,7 @@ class MatrixKnowledgeDB(BaseDB):
                     if np.all(ins == examples[i]):
                         ind.append(i)
             # ind = [np.argwhere(self._X == examples[i]).flatten() for i in range(len(examples))]
-            return self._X[ind,], self._y[ind,]
+            return self._X[ind, ], self._y[ind, ]
         else:
             raise ValueError("A 1D or 2D array is expected. But received: %d" % examples.ndim)
 
@@ -631,6 +485,6 @@ class MatrixKnowledgeDB(BaseDB):
         self._y = None
         self._indexes = None
 
-        # class MultiLabelKnowledgeDB(MatrixKnowledgeDB):
-        #     """Using a sparse matrix to save the data
-        #     """
+# class MultiLabelKnowledgeDB(MatrixKnowledgeDB):
+#     """Using a sparse matrix to save the data
+#     """

@@ -159,56 +159,56 @@ class StateIO:
     def add_state(self, state):
         assert (isinstance(state, experiment_saver.state.State))
         self.__state_list.append(copy.deepcopy(state))
-        if self.__check_flag:
-            res, err_st, err_ind = self.check_select_index()
-            if res == -1:
-                warnings.warn(
-                    'Checking validity fails, there is a queried instance not in set_U in '
-                    'State:%d, index:%s.' % (err_st, str(err_ind)),
-                    category=ValidityWarning)
-            if res == -2:
-                warnings.warn('Checking validity fails, there are instances already queried '
-                              'in previous iteration in State:%d, index:%s.' % (err_st, str(err_ind)),
-                              category=ValidityWarning)
+        # if self.__check_flag:
+        #     res, err_st, err_ind = self.check_select_index()
+        #     if res == -1:
+        #         warnings.warn(
+        #             'Checking validity fails, there is a queried instance not in set_U in '
+        #             'State:%d, index:%s.' % (err_st, str(err_ind)),
+        #             category=ValidityWarning)
+        #     if res == -2:
+        #         warnings.warn('Checking validity fails, there are instances already queried '
+        #                       'in previous iteration in State:%d, index:%s.' % (err_st, str(err_ind)),
+        #                       category=ValidityWarning)
         if self.__verbose:
             print(self.__repr__())
 
     def get_state(self, index):
         return copy.deepcopy(self.__state_list[index])
 
-    def check_select_index(self):
-        """
-        check:
-        - Q has no repeating elements
-        - Q in U
-        Returns
-        -------
-        result: int
-            check result
-            - if -1 is returned, there is a queried instance not in U
-            - if -2 is returned, there are repeated instances in Q
-            - if 1 is returned, CHECK OK
-
-        state_index: int
-            the state index when checking fails (start from 0)
-            if CHECK OK, None is returned.
-
-        select_index: object
-            the select_index when checking fails.
-            if CHECK OK, None is returned.
-        """
-        repeat_dict = dict()
-        ind = -1
-        for st in self.__state_list:
-            ind += 1
-            for instance in st.get_value('select_index'):
-                if instance not in self.init_U:
-                    return -1, ind, instance
-                if instance not in repeat_dict.keys():
-                    repeat_dict[instance] = 1
-                else:
-                    return -2, ind, instance
-        return 1, None, None
+    # def check_select_index(self):
+    #     """
+    #     check:
+    #     - Q has no repeating elements
+    #     - Q in U
+    #     Returns
+    #     -------
+    #     result: int
+    #         check result
+    #         - if -1 is returned, there is a queried instance not in U
+    #         - if -2 is returned, there are repeated instances in Q
+    #         - if 1 is returned, CHECK OK
+    #
+    #     state_index: int
+    #         the state index when checking fails (start from 0)
+    #         if CHECK OK, None is returned.
+    #
+    #     select_index: object
+    #         the select_index when checking fails.
+    #         if CHECK OK, None is returned.
+    #     """
+    #     repeat_dict = dict()
+    #     ind = -1
+    #     for st in self.__state_list:
+    #         ind += 1
+    #         for instance in st.get_value('select_index'):
+    #             if instance not in self.init_U:
+    #                 return -1, ind, instance
+    #             if instance not in repeat_dict.keys():
+    #                 repeat_dict[instance] = 1
+    #             else:
+    #                 return -2, ind, instance
+    #     return 1, None, None
 
     def check_batch_size(self):
         """
@@ -320,9 +320,6 @@ saving path: %s
 ''' % (self.round, len(self.init_L), 100 * len(self.init_L) / (len(self.init_L) + len(self.init_U)),
        len(self.__state_list), numqdata, 100 * numqdata / len(self.init_U), cost, self.saving_path)
 
-
-class StateIOMultiLabel(StateIO):
-    pass
 
 
 if __name__ == '__main__':

@@ -84,10 +84,6 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
         selected_idx: array-like
             queried keys, keys are in unlabel_index
         """
-        # if not isinstance(unlabel_index, (BaseCollection,set,list,np.ndarray)) :
-        #     raise TypeError('unlabel_index should be a DataCollection, Set, List Type')
-        # if not isinstance(label_index,(BaseCollection,set,list,np.ndarray)) :
-        #     raise TypeError('unlabel_index should be a DataCollection, Set, List Type')
         # assert (batch_size > 0)
         assert (isinstance(unlabel_index, collections.Iterable))
         if len(unlabel_index) <= batch_size:
