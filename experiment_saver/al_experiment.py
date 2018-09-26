@@ -151,3 +151,6 @@ class AlExperiment:
 
     def __iter__(self):
         return iter(self.__results)
+
+    def __repr__(self):
+        return

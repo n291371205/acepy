@@ -7,6 +7,7 @@ Class to analyse active learning experiments.
 import copy
 
 import matplotlib.pyplot as plt
+import prettytable as pt
 import numpy as np
 
 import experiment_saver.al_experiment
@@ -204,19 +205,17 @@ class ExperimentAnalyser:
         4. round
         5. mean+-std performances (whole length)
         """
-        string1 = 'Methods    batch_size  number_of_queries   number_of_different_split   performance\n'
-        string1 += '_____________________________________________________________________________________\n'
-        string2 = ''
+        tb = pt.PrettyTable()
+        tb.field_names = ['Methods', 'batch_size', 'number_of_queries', 'number_of_different_split', 'performance']
         for i in self.methods():
             summary = self.__method_summary[i]
             if summary.batch_flag:
-                string2 += "%s\t%s\t%d\t%d\t%f+-%f" % (
-                    i, summary.batch_size, summary.effective_length, summary.folds, summary.mean, summary.std)
+                tb.add_row([i, summary.batch_size, summary.effective_length, summary.folds,
+                            "%.3f ± %.2f" % (summary.mean, summary.std)])
             else:
-                string2 += "%s\tNotSameSize\t%d\t%d\t%f+-%f" % (
-                    i, summary.effective_length, summary.folds, summary.mean, summary.std)
-            string2 += '\n'
-        return string1 + string2
+                tb.add_row([i, 'NotSameSize', summary.effective_length, summary.folds,
+                            "%.3f ± %.2f" % (summary.mean, summary.std)])
+        return '\n' + str(tb)
 
     def __len__(self):
         return len(self.__result_raw)

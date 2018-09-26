@@ -18,6 +18,8 @@ import collections.abc
 import copy
 import os
 import pickle
+import sys
+import prettytable as pt
 import experiment_saver.state
 from utils.ace_warnings import *
 import numpy as np
@@ -53,18 +55,21 @@ class StateIO:
         the performance index
 
     saving_path: str, optional (default='.')
-        path to save the intermediate files.
+        path to save the intermediate files. If not provided, it will
+        save to the current dir.
 
     check_flag: bool, optional (default=True)
         whether to check the validaty of states.
 
     verbose: bool, optional (default=True)
         whether to print query information during the AL process
+
+    print_interval: int optional (default=1)
+        How many queries will trigger a print when verbose is True
     """
 
     def __init__(self, round, train_idx, test_idx, init_U, init_L, initial_point=None, saving_path=None,
-                 check_flag=True,
-                 verbose=True):
+                 check_flag=True, verbose=True, print_interval=1):
         """When init this class,
         should store the basic info of this active learning info,
         include: thread_id, train/test_idx, round, etc.
@@ -73,6 +78,7 @@ class StateIO:
         assert (isinstance(verbose, bool))
         self.__check_flag = check_flag
         self.__verbose = verbose
+        self.__print_interval = print_interval
         if self.__check_flag:
             # check validity
             assert (isinstance(train_idx, collections.Iterable))
@@ -98,6 +104,7 @@ class StateIO:
                 os.makedirs(tp_path)
             self.saving_path = tp_path
         self.__state_list = []
+        self._first_print = True
 
     @classmethod
     def load(cls, path):
@@ -170,8 +177,14 @@ class StateIO:
         #         warnings.warn('Checking validity fails, there are instances already queried '
         #                       'in previous iteration in State:%d, index:%s.' % (err_st, str(err_ind)),
         #                       category=ValidityWarning)
-        if self.__verbose:
-            print(self.__repr__())
+
+        if self.__verbose and len(self) % self.__print_interval == 0:
+            if self._first_print:
+                print('\n' + self.__repr__(), end='')
+                self._first_print = False
+            else:
+                print('\r' + self._refresh_dataline(), end='')
+                sys.stdout.flush()
 
     def get_state(self, index):
         return copy.deepcopy(self.__state_list[index])
@@ -290,6 +303,9 @@ class StateIO:
             work_L.update(state.get_value('select_index'))
         return copy.copy(self.train_idx), copy.copy(self.test_idx), copy.deepcopy(work_U), copy.deepcopy(work_L)
 
+    def get_current_progress(self):
+        return len(self.__state_list)
+
     def __len__(self):
         return len(self.__state_list)
 
@@ -309,17 +325,20 @@ class StateIO:
             numqdata += len(state.get_value('select_index'))
             if 'cost' in state.keys():
                 cost += np.sum(state.get_value('cost'))
-        return '''\rActive selection summary:
-_____________________________________________
-round: %d
-initially labeled data: %d (%.2f%% of all)
-number of queries: %d
-queried data: %d (%.2f%% of unlabeled data)
-cost: %.2f
-saving path: %s
-''' % (self.round, len(self.init_L), 100 * len(self.init_L) / (len(self.init_L) + len(self.init_U)),
-       len(self.__state_list), numqdata, 100 * numqdata / len(self.init_U), cost, self.saving_path)
+        tb = pt.PrettyTable()
+        tb.set_style(pt.MSWORD_FRIENDLY)
+        tb.add_column('round', [self.round])
+        tb.add_column('initially labeled data', [
+            " %d (%.2f%% of all)" % (len(self.init_L), 100 * len(self.init_L) / (len(self.init_L) + len(self.init_U)))])
+        tb.add_column('number of queries', [len(self.__state_list)])
+        tb.add_column('queried data', ["%d (%.2f%% of unlabeled data)" % (numqdata, 100 * numqdata / len(self.init_U))])
+        tb.add_column('cost', [cost])
+        tb.add_column('saving path', [self.saving_path])
+        return str(tb)
 
+    def _refresh_dataline(self):
+        tb = self.__repr__()
+        return tb.splitlines()[1]
 
 
 if __name__ == '__main__':

@@ -1,10 +1,19 @@
+from sklearn import linear_model
 from sklearn.datasets import load_iris
-from experiment_saver.state_io import StateIO
 
 from analyser.experiment_analyser import ExperimentAnalyser
 from data_process.al_split import split
 from experiment_saver.al_experiment import AlExperiment
 from experiment_saver.state import State
+from experiment_saver.state_io import StateIO
+from oracle.oracle import Oracle
+# QBC
+# QBC_ve
+# random
+# uncertainty
+from query_strategy.query_strategy import (QueryInstanceQBC,
+                                           QueryInstanceUncertainty,
+                                           QueryRandom)
 from utils.al_collections import IndexCollection
 
 # X, y, _ = load_csv_data('C:\\Code\\altools\\dataset\\iris.csv')
@@ -12,13 +21,9 @@ X, y = load_iris(return_X_y=True)
 Train_idx, Test_idx, U_pool, L_pool = split(X=X, y=y, test_ratio=0.3, initial_label_rate=0.2, split_count=5)
 ea = ExperimentAnalyser()
 
-# uncertainty
-from query_strategy.query_strategy import QueryInstanceUncertainty
-from oracle.oracle import Oracle
 
 qs = QueryInstanceUncertainty(X, y)
 oracle = Oracle(y)
-from sklearn import linear_model
 
 reg = linear_model.LogisticRegression()
 ae = AlExperiment(method_name='uncertainty')
@@ -68,8 +73,6 @@ for round in range(5):
     ae.add_fold(saver)
 ea.add_method(ae)
 
-# random
-from query_strategy.query_strategy import QueryRandom
 
 qs = QueryRandom()
 ae = AlExperiment(method_name='random')
@@ -117,8 +120,6 @@ for round in range(5):
     ae.add_fold(saver)
 ea.add_method(ae)
 
-# QBC_ve
-from query_strategy.query_strategy import QueryInstanceQBC
 
 qs = QueryInstanceQBC(X,y,disagreement='vote_entropy')
 ae = AlExperiment(method_name='QBC_ve')
@@ -166,8 +167,6 @@ for round in range(5):
     ae.add_fold(saver)
 ea.add_method(ae)
 
-# QBC
-from query_strategy.query_strategy import QueryInstanceQBC
 qs = QueryInstanceQBC(X,y,disagreement='KL_divergence')
 ae = AlExperiment(method_name='QBC_kl')
 

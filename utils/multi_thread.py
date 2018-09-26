@@ -1,6 +1,9 @@
 import threading
 import random
 import numpy as np
+import time
+import prettytable
+from experiment_saver.state_io import StateIO
 
 
 class aceThreading:
@@ -15,20 +18,69 @@ class aceThreading:
     Note that, this class only provides visualization and file IO for threads, but
     not implement any threads. You should construct different threads by your own, 
     and then provide them as parameters for visualization.
+
+    Specifically, the parameters of thread function must be:
+    (round, train_id, test_id, Ucollection, Lcollection, saver, **global_parameters)
     """
-    pass
+    def __init__(self, examples, labels, train_idx, test_idx, label_index, unlabel_index, max_thread=None):
+        self.examples = examples
+        self.labels = labels
+        self.train_idx = train_idx
+        self.test_idx = test_idx
+        self.label_index = label_index
+        self.unlabel_index = unlabel_index
 
+        assert(len(train_idx) == len(test_idx) ==
+               len(label_index) == len(unlabel_index))
+        self._round_num = len(label_index)
+        self.threads = []
+        self.saver = [StateIO(round=i, train_idx=self.train_idx[i], test_idx=self.test_idx[i], init_U=self.unlabel_index[i],
+                              init_L=self.label_index[i], verbose=False) for i in range(self._round_num)]
+        if max_thread is None:
+            self.max_thread = self._round_num
+        else:
+            self.max_thread = max_thread
+        self._start_time = time.clock()
 
-def query(U):
-    print(U)
-    return U[1]
+    def start_threads(self, thread_func, global_parameters=None):
+        if global_parameters is not None:
+            assert(isinstance(global_parameters, dict))
+        # init thread objects
+        for i in range(self._round_num):
+            t = threading.Thread(target=thread_func, name=str(i), kwargs={
+                'round': i, 'train_idx': self.train_idx[i], 'test_idx': self.test_idx[i],
+                'unlabel_index': self.unlabel_index[i], 'label_index': self.label_index[i],
+                'saver': self.saver[i],
+                'global_parameters': global_parameters})
+            self.threads.append(t)
 
+        # start thread
+        available_thread = self._round_num
+        started_thread = 0
+        for i in range(self._round_num):
+            if available_thread > 0:
+                self.threads[i].start()
+                started_thread += 1
+                available_thread -= 1
+            else:
+                while True:
+                    if threading.active_count() < self.max_thread:
+                        break
+                available_thread += self.max_thread-threading.active_count()
+                self.threads[i].start()
+                started_thread += 1
+                available_thread -= 1
+        for i in range(self._round_num):
+            self.threads[i].join()
 
-def main_loop(query_func=object, U=None, L=None):
-    Q = query_func(U)
-    print(Q)
-    L = [L, Q]
+    def show_state(self):
+        pass
 
+    def _if_refresh(self):
+        if time.clock() - self._start_time > 1:
+            return True
+        else:
+            return False
 
 if __name__ == '__main__':
     from sklearn.datasets import load_iris
@@ -52,9 +104,7 @@ if __name__ == '__main__':
 
     train_id, test_id, Ucollection, Lcollection = es.get_split(round)
 
-    def run_thread(round, train_id, test_id, Ucollection, Lcollection, 
-    model, examples, labels, oracle, query_strategy, performance, global_parameters):
-        saver = es.get_saver(round)
+    def run_thread(round, train_id, test_id, Ucollection, Lcollection, saver, **global_parameters):
         db = es.get_knowledge_db(round)
         reg.fit(X=db.get_examples(), y=db.get_labels())
 
@@ -77,14 +127,3 @@ if __name__ == '__main__':
             saver.add_state(st)
             saver.save()
         return saver
-
-    # threads = []
-    # # 创建线程
-    # for i in range(round):
-    #     t = threading.Thread(target=main_loop, args=(query, U[i, :], L[i, :]))
-    #     threads.append(t)
-    # # 启动线程
-    # for i in range(round):
-    #     threads[i].start()
-    # for i in range(round):
-    #     threads[i].join()
