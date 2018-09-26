@@ -2,6 +2,21 @@ import threading
 import random
 import numpy as np
 
+class aceThreading:
+    """This class implement multi-threading in active learning for multiple 
+    random splits experiments.
+
+    It will display the progress of each thead. When all threads reach the 
+    end points, it will return k StateIO objects for analysis.
+
+    Once initialized, it can store and recover from any iterations and breakpoints.
+
+    Note that, this class only provides visualization and file IO for threads, but
+    not implement any threads. You should construct different threads by your own, 
+    and then provide them as parameters for visualization.
+    """
+    pass
+
 
 def query(U):
     print(U)

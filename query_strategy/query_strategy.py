@@ -11,7 +11,7 @@ import collections
 
 import numpy as np
 from sklearn.utils.validation import check_X_y
-
+from sklearn.svm import SVC
 import utils.base
 import utils.tools
 
@@ -65,7 +65,7 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
             self.X = X
             self.y = y
 
-    def select(self, unlabel_index, model, batch_size=1):
+    def select(self, unlabel_index, model=SVC(), batch_size=1):
         """Select index in unlabel_index to query
 
         Parameters
@@ -73,8 +73,9 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
         unlabel_index: array or set like
             index of unlabel set
 
-        model : object
-            current classification model
+        model : object, optional (default=SVM)
+            current classification model, if not provided, svm with default 
+            parameters will be used.
 
         batch_size: int
             batch size of AL
@@ -318,7 +319,7 @@ class QueryInstanceQBC(utils.base.BaseQueryStrategy):
         else:
             raise ValueError("disagreement must be one of ['vote_entropy', 'KL_divergence']")
 
-    def select(self, label_index, unlabel_index, model, batch_size=1):
+    def select(self, label_index, unlabel_index, model=SVC(), batch_size=1):
         """Select index in unlabel_index to query
 
         Parameters

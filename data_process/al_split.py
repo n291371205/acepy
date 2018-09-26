@@ -15,6 +15,7 @@ from utils.query_type import check_query_type
 from utils.tools import randperm
 from sklearn.utils.validation import check_array
 from sklearn.utils.validation import check_X_y
+from sklearn.svm import SVC
 from sklearn.utils.multiclass import unique_labels, is_multilabel, check_classification_targets, type_of_target
 from utils.ace_warnings import *
 from utils.al_collections import IndexCollection, MultiLabelIndexCollection
@@ -52,10 +53,10 @@ class ExperimentSetting:
         It also can be a list contains names of instances, used for image datasets.
         The split will only depend on the indexes if X is not provided.
 
-    model: object, optional (default=None)
+    model: object, optional (default=SVC)
         The baseline model for evaluating the active learning strategy.
 
-    query_type: str, optional (default=query_instance)
+    query_type: str, optional (default='AllLabels')
         active learning settings. It will determine how to split data.
 
     test_ratio: float, optional (default=0.3)
@@ -81,7 +82,7 @@ class ExperimentSetting:
     performance: str, optional (default='Accuracy')
         The performance index of the experiment.
 
-    saving_path: str, optional (default=None)
+    saving_path: str, optional (default='.')
         path to save current settings. if None is provided, then it will not
         save the path
 
@@ -95,9 +96,9 @@ class ExperimentSetting:
 
     """
 
-    def __init__(self, y, X=None, instance_indexes=None, model=None,
-                 query_type=None, test_ratio=0.3, initial_label_rate=0.05,
-                 split_count=10, all_class=True, partially_labeled=False, performance='Accuracy', saving_path=None):
+    def __init__(self, y, X=None, instance_indexes=None, model=SVC(),
+                 query_type='AllLabels', test_ratio=0.3, initial_label_rate=0.05,
+                 split_count=10, all_class=True, partially_labeled=False, performance='Accuracy', saving_path='.'):
         if X is None and y is None and instance_indexes is None:
             raise ValueError("Must provide one of X, y or instance_indexes.")
         self._index_len = None
@@ -126,32 +127,22 @@ class ExperimentSetting:
         if instance_indexes is None:
             self._indexes = [i for i in range(self._index_len)]
         else:
-            if self._index_len is None:  # both X and y is not provided.
-                self._index_len = len(self._indexes)
-            else:  # one of X and y is provided
-                if len(instance_indexes) != self._index_len:
-                    raise ValueError("Length of given instance_indexes do not accord the data set.")
+            if len(instance_indexes) != self._index_len:
+                raise ValueError("Length of given instance_indexes do not accord the data set.")
             self._indexes = copy.copy(instance_indexes)
-        if model is None:
+        # check if the model is acceptable
+        if not (hasattr(model, 'fit') and hasattr(model, 'predict')):
             warnings.warn("Instances matrix or acceptable model is not given, The initial point can not "
-                          "be calculated automatically.", category=FunctionWarning)
+                            "be calculated automatically.", category=FunctionWarning)
             self._model_flag = False
         else:
-            # check if the model is acceptable
-            if not (hasattr(model, 'fit') and hasattr(model, 'predict')):
-                warnings.warn("Instances matrix or acceptable model is not given, The initial point can not "
-                              "be calculated automatically.", category=FunctionWarning)
-                self._model_flag = False
-            else:
-                self._model_flag = True
+            self._model_flag = True
+            self.model = model
         # still in progress
-        if query_type is None:  # the most popular setting is used.
-            self.query_type = 'AllLabels'
+        if check_query_type(query_type):
+            self.query_type = query_type
         else:
-            if check_query_type(query_type):
-                self.query_type = query_type
-            else:
-                raise NotImplemented("Query type %s is not implemented." % type)
+            raise NotImplemented("Query type %s is not implemented." % type)
         self.saving_path = saving_path
         self.split_count = split_count
         self.test_ratio = test_ratio
@@ -221,6 +212,9 @@ class ExperimentSetting:
 
     def random_selection(self):
         return QueryRandom()
+
+    def get_model(self):
+        return self.model
 
     def save_settings(self, saving_path):
         """Save the experiment settings to file for auditting or loading for other methods.
