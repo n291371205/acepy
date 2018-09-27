@@ -319,7 +319,7 @@ class QueryInstanceQBC(utils.base.BaseQueryStrategy):
         else:
             raise ValueError("disagreement must be one of ['vote_entropy', 'KL_divergence']")
 
-    def select(self, label_index, unlabel_index, model=SVC(), batch_size=1):
+    def select(self, label_index, unlabel_index, model=SVC(), batch_size=1, n_jobs=None):
         """Select index in unlabel_index to query
 
         Parameters
@@ -330,11 +330,14 @@ class QueryInstanceQBC(utils.base.BaseQueryStrategy):
         unlabel_index: array or set like
             index of unlabel set
 
-        model : object
+        model : object, optional (default=svm)
             current classification model
 
-        batch_size: int
+        batch_size: int, optional (default=1)
             batch size of AL
+
+        n_jobs: int, optional (default=None)
+            how many threads will be used in training bagging
 
         Returns
         -------
@@ -362,7 +365,7 @@ class QueryInstanceQBC(utils.base.BaseQueryStrategy):
 
         # bagging
         from sklearn.ensemble import BaggingClassifier
-        bagging = BaggingClassifier(model)
+        bagging = BaggingClassifier(model, n_jobs=n_jobs)
         bagging.fit(label_x, label_y)
         est_arr = bagging.estimators_
 

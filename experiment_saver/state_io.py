@@ -157,7 +157,7 @@ class StateIO:
             file_name for saving, if not given ,then default name will be used.
         """
         if file_name is None:
-            f = open(os.path.join(self.saving_path, 'experiment_result_file_round_' + str(self.round)), 'wb')
+            f = open(os.path.join(self.saving_path, 'experiment_result_file_round_' + str(self.round) + '.pkl'), 'wb')
         else:
             f = open(os.path.join(self.saving_path, file_name), 'wb')
         pickle.dump(self, f)
@@ -275,29 +275,29 @@ class StateIO:
         self.__state_list = self.__state_list[0:iteration - 1]
         return copy.copy(self.train_idx), copy.copy(self.test_idx), copy.deepcopy(work_U), copy.deepcopy(work_L)
 
-    def get_workspace(self, iteration):
+    def get_workspace(self, iteration=None):
         """
-        get workspace of given iteration before querying.
-        For example, if 1 is given, original State will be returned.
+        get workspace of given iteration.
+        For example, if 1 is given, The State after first query will be returned.
 
         Parameters
         ----------
         iteration: int
-            number of iteration to recover, start from 1.
+            number of iteration to recover.
 
         Returns
         -------
         Ucollection: Indexcollection
-            Unlabel index collection in iteration before querying.
+            Unlabel index collection in iteration.
 
         Lcollection: Indexcollection
-            Label index collection in iteration before querying.
+            Label index collection in iteration.
         """
         if iteration is None:
             iteration = len(self.__state_list)
         work_U = copy.deepcopy(self.init_U)
         work_L = copy.deepcopy(self.init_L)
-        for i in range(iteration - 1):
+        for i in range(iteration):
             state = self.__state_list[i]
             work_U.difference_update(state.get_value('select_index'))
             work_L.update(state.get_value('select_index'))
@@ -307,8 +307,11 @@ class StateIO:
         return len(self.__state_list)
 
     def get_current_performance(self):
-        tmp = [self[i].get_value('performance') for i in range(self.__len__())]
-        return np.mean(tmp), np.std(tmp)
+        if len(self) == 0:
+            return 0, 0
+        else:
+            tmp = [self[i].get_value('performance') for i in range(self.__len__())]
+            return np.mean(tmp), np.std(tmp)
 
     def __len__(self):
         return len(self.__state_list)

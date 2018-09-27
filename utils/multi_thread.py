@@ -4,7 +4,9 @@ import numpy as np
 import time
 import os
 import pickle
+import inspect
 import prettytable as pt
+import copy
 from experiment_saver.state_io import StateIO
 
 
@@ -22,10 +24,40 @@ class aceThreading:
     and then provide them as parameters for visualization.
 
     Specifically, the parameters of thread function must be:
-    (round, train_id, test_id, Ucollection, Lcollection, saver, **global_parameters)
+    (round, train_id, test_id, Ucollection, Lcollection, saver, examples, labels, global_parameters)
+    in which, the global_parameters is a dict which contains the other variables for user-defined function.
+
+    Parameters
+    ----------
+    examples: array-like
+        data matrix, shape like [n_samples, n_features].
+
+    labels:: array-like
+        labels of examples. shape like [n_samples] or [n_samples, n_classes] if in the multi-label setting.
+
+    train_idx: array-like
+        index of training examples. shape like [n_round, n_training_examples].
+
+    test_idx: array-like
+        index of training examples. shape like [n_round, n_testing_examples].
+
+    label_index: array-like
+        index of initially labeled examples. shape like [n_round, n_labeled_examples].
+
+    unlabel_index: array-like
+        index of unlabeled examples. shape like [n_round, n_unlabeled_examples].
+
+    max_thread: int, optional (default=None)
+        The max threads for running at the same time. If not provided, it will run all rounds simultaneously.
+
+    refresh_interval: float, optional (default=1.0)
+        how many seconds to refresh the current state output, default is 1.0.
+
+    saving_path: str, optional (default='.')
+        the path to save the result files.
     """
 
-    def __init__(self, examples, labels, train_idx, test_idx, label_index, unlabel_index, max_thread=None,
+    def __init__(self, examples, labels, train_idx, test_idx, unlabel_index, label_index, max_thread=None,
                  refresh_interval=1, saving_path='.'):
         self.examples = examples
         self.labels = labels
@@ -36,6 +68,11 @@ class aceThreading:
         self.refresh_interval = refresh_interval
         self.saving_path = os.path.abspath(saving_path)
 
+        # the path to store results of each thread.
+        tp_path = os.path.join(self.saving_path, 'AL_result')
+        if not os.path.exists(tp_path):
+            os.makedirs(tp_path)
+
         assert (len(train_idx) == len(test_idx) ==
                 len(label_index) == len(unlabel_index))
         self._round_num = len(label_index)
@@ -43,7 +80,8 @@ class aceThreading:
         # for monitoring threads' progress
         self.saver = [
             StateIO(round=i, train_idx=self.train_idx[i], test_idx=self.test_idx[i], init_U=self.unlabel_index[i],
-                    init_L=self.label_index[i], verbose=False) for i in range(self._round_num)]
+                    init_L=self.label_index[i], saving_path=os.path.join(self.saving_path, 'AL_result'),
+                    verbose=False) for i in range(self._round_num)]
         if max_thread is None:
             self.max_thread = self._round_num
         else:
@@ -53,33 +91,73 @@ class aceThreading:
         # for displaying the time elapse
         self._thread_time_elapse = [-1] * self._round_num
         # for recovering the workspace
-        self._alive_thread = [False] * self._round_num
+        self.alive_thread = [False] * self._round_num
 
-    def start_threads(self, thread_func, global_parameters=None):
+    def start_all_threads(self, thread_func, global_parameters=None):
+        """Start multi-threading.
+
+        this function will automatically invoke the thread_func function with the parameters:
+        (round, train_id, test_id, Ucollection, Lcollection, saver, examples, labels, **global_parameters),
+        in which, the global_parameters should be provided by the user for additional variables.
+
+        It is necessary that the parameters of your thread_func accord the appointment, otherwise,
+        it will raise an error.
+
+        Parameters
+        ----------
+        thread_func: function object
+            the function to parallel, the parameters must accord the appointment.
+
+        global_parameters: dict, optional (default=None)
+            the additional variables to implement user-defined query-strategy.
+        """
+        self.__init_threads(thread_func, global_parameters)
+        # start thread
+        self.__start_all_threads()
+
+    def __init_threads(self, thread_func, global_parameters=None):
+        # check validity
+        argname = inspect.getfullargspec(thread_func)[0]
+        for name1 in ['round', 'train_id', 'test_id', 'Ucollection', 'Lcollection', 'saver', 'examples', 'labels',
+                      'global_parameters']:
+            if name1 not in argname:
+                raise ValueError(
+                    "the parameters of thread_func must be (round, train_id, test_id, "
+                    "Ucollection, Lcollection, saver, examples, labels, global_parameters)")
+
         if global_parameters is not None:
             assert (isinstance(global_parameters, dict))
+        self._thread_func = thread_func
+        self._global_parameters = global_parameters
+
         # init thread objects
         for i in range(self._round_num):
             t = threading.Thread(target=thread_func, name=str(i), kwargs={
-                'round': i, 'train_idx': self.train_idx[i], 'test_idx': self.test_idx[i],
-                'unlabel_index': self.unlabel_index[i], 'label_index': self.label_index[i],
-                'saver': self.saver[i],
+                'round': i, 'train_id': self.train_idx[i], 'test_id': self.test_idx[i],
+                'Ucollection': copy.deepcopy(self.unlabel_index[i]), 'Lcollection': copy.deepcopy(self.label_index[i]),
+                'saver': self.saver[i], 'examples': self.examples, 'labels': self.labels,
                 'global_parameters': global_parameters})
             self.threads.append(t)
 
+    def __start_all_threads(self, recover_arr=None):
+        if recover_arr is None:
+            recover_arr = [True] * self._round_num
+        else:
+            assert (len(recover_arr) == self._round_num)
         # start thread
         available_thread = self._round_num
         for i in range(self._round_num):
+            if not recover_arr[i]:
+                continue
             if available_thread > 0:
                 self.threads[i].start()
                 self._thread_time_elapse[i] = time.time()
-                self._alive_thread[i] = True
+                self.alive_thread[i] = True
                 available_thread -= 1
 
-                # print and saving
-                if self._if_refresh():
-                    print(self)
+                # saving
                 self._update_thread_state()
+                self.save()
             else:
                 while True:
                     if self._if_refresh():
@@ -89,13 +167,22 @@ class aceThreading:
                 available_thread += self.max_thread - threading.active_count()
                 self.threads[i].start()
                 self._thread_time_elapse[i] = time.time()
-                self._alive_thread[i] = True
+                self.alive_thread[i] = True
                 available_thread -= 1
 
-                # print and saving
+                # saving
                 self._update_thread_state()
+                self.save()
+
+        # waiting for other threads.
         for i in range(self._round_num):
-            self.threads[i].join()
+            if not recover_arr[i]:
+                continue
+            while self.threads[i].is_alive():
+                if self._if_refresh():
+                    print(self)
+            self._update_thread_state()
+            self.save()
 
     def __repr__(self):
         tb = pt.PrettyTable()
@@ -124,9 +211,31 @@ class aceThreading:
     def _update_thread_state(self):
         for i in range(len(self.threads)):
             if self.threads[i].is_alive():
-                self._alive_thread[i] = True
+                self.alive_thread[i] = True
             else:
-                self._alive_thread[i] = False
+                self.alive_thread[i] = False
+
+    def __getstate__(self):
+        pickle_seq = (
+            self.examples,
+            self.labels,
+            self.train_idx,
+            self.test_idx,
+            self.label_index,
+            self.unlabel_index,
+            self.refresh_interval,
+            self.saving_path,
+            self._round_num,
+            self.max_thread,
+            self._thread_func,
+            self._global_parameters,
+            self.alive_thread,
+            self.saver
+        )
+        return pickle_seq
+
+    def __setstate__(self, state):
+        self.examples, self.labels, self.train_idx, self.test_idx, self.label_index, self.unlabel_index, self.refresh_interval, self.saving_path, self._round_num, self.max_thread, self._thread_func, self._global_parameters, self.alive_thread, self.saver = state
 
     def save(self):
         if os.path.isdir(self.saving_path):
@@ -136,62 +245,49 @@ class aceThreading:
         pickle.dump(self, f)
         f.close()
 
-    def recover(self, path):
+    @classmethod
+    def recover(cls, path):
         # load breakpoint
         if not isinstance(path, str):
             raise TypeError("A string is expected, but received: %s" % str(type(path)))
         f = open(os.path.abspath(path), 'rb')
         breakpoint = pickle.load(f)
         f.close()
+        if not isinstance(breakpoint, aceThreading):
+            raise TypeError("Please enter the correct path to the multi-threading saving file.")
 
         # recover the workspace
-        pass
-
+        # init self
+        recover_thread = cls(breakpoint.examples, breakpoint.labels, breakpoint.train_idx,
+                                        breakpoint.test_idx, breakpoint.unlabel_index, breakpoint.label_index,
+                                        breakpoint.max_thread,
+                                        breakpoint.refresh_interval, breakpoint.saving_path)
+        # loading tmp files
+        state_path = os.path.join(breakpoint.saving_path, 'AL_result')
+        recover_arr = [True] * breakpoint._round_num
+        for i in range(breakpoint._round_num):
+            file_dir = os.path.join(state_path, 'experiment_result_file_round_' + str(i) + '.pkl')
+            if not breakpoint.alive_thread[i]:
+                if os.path.exists(file_dir) and os.path.getsize(file_dir) != 0:
+                    # all finished
+                    recover_arr[i] = False
+                else:
+                    # not started
+                    pass
+            else:
+                if os.path.getsize(file_dir) == 0:
+                    # not saving, but started
+                    continue
+                # still running
+                recover_thread.saver[i] = StateIO.load(
+                    os.path.join(state_path, 'experiment_result_file_round_' + str(i) + '.pkl'))
+                tmp = recover_thread.saver[i].get_workspace()
+                recover_thread.unlabel_index[i] = tmp[2]
+                recover_thread.label_index[i] = tmp[3]
+        recover_thread.__init_threads(breakpoint._thread_func, breakpoint._global_parameters)
+        recover_thread.__start_all_threads(recover_arr)
+        return recover_thread
 
 
 if __name__ == '__main__':
-    from sklearn.datasets import load_iris
-    from data_process.al_split import ExperimentSetting
-    from analyser.experiment_analyser import ExperimentAnalyser
-    from experiment_saver.al_experiment import AlExperiment
-    from sklearn.ensemble import RandomForestClassifier
-    from utils.knowledge_db import MatrixKnowledgeDB
-    from experiment_saver.state import State
-    from sklearn.preprocessing import LabelBinarizer
-
-    X, y = load_iris(return_X_y=True)
-    es = ExperimentSetting(X=X, y=y)
-    ea = ExperimentAnalyser()
-    reg = RandomForestClassifier()
-
-    oracle = es.get_clean_oracle()
-    qs = es.uncertainty_selection()
-
-    ae = AlExperiment(method_name='uncertainty')
-
-    train_id, test_id, Ucollection, Lcollection = es.get_split(round)
-
-
-    def run_thread(round, train_id, test_id, Ucollection, Lcollection, saver, **global_parameters):
-        db = es.get_knowledge_db(round)
-        reg.fit(X=db.get_examples(), y=db.get_labels())
-
-        while len(Ucollection) > 10:
-            select_index = qs.select(Ucollection, reg)
-            queried_labels, cost = oracle.query_by_index(select_index)
-            Ucollection.difference_update(select_index)
-            Lcollection.update(select_index)
-            db.update_query(labels=queried_labels, indexes=select_index,
-                            cost=cost, examples=X[select_index, :])
-            # print(db.retrieve_by_indexes(select_index))
-            # print(db.retrieve_by_examples(X[Lcollection.index, :]))
-
-            # update model
-            reg.fit(X=db.get_examples(), y=db.get_labels())
-            pred = reg.predict(X[test_id, :])
-            accuracy = sum(pred == y[test_id]) / len(test_id)
-
-            st = State(select_index=select_index, performance=accuracy)
-            saver.add_state(st)
-            saver.save()
-        return saver
+    pass

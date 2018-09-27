@@ -42,6 +42,17 @@ class AlExperiment:
             raise TypeError('StateIO object or str is expected, but received:%s' % str(type(src)),
                             category=UnexpectedParameterWarning)
 
+    def add_folds(self, folds):
+        """Add multiple folds.
+
+        Parameters
+        ----------
+        folds: list
+            The list contains n StateIO objects.
+        """
+        for item in folds:
+            self.add_fold(item)
+
     def __add_fold_by_object(self, result):
         """
         Add one fold of active learning experiment
