@@ -306,6 +306,10 @@ class StateIO:
     def get_current_progress(self):
         return len(self.__state_list)
 
+    def get_current_performance(self):
+        tmp = [self[i].get_value('performance') for i in range(self.__len__())]
+        return np.mean(tmp), np.std(tmp)
+
     def __len__(self):
         return len(self.__state_list)
 
