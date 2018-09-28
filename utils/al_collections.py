@@ -17,7 +17,7 @@ from utils.ace_warnings import *
 from utils.base import BaseCollection
 from utils.tools import _is_arraylike
 from sklearn.utils.validation import check_array
-from utils.tools import check_index_multilabel
+from utils.tools import check_index_multilabel, infer_label_size_multilabel, flattern_multilabel_index
 
 
 class IndexCollection(BaseCollection):
@@ -174,33 +174,13 @@ class MultiLabelIndexCollection(IndexCollection):
         if data is not None:
             # check given indexes
             data = check_index_multilabel(data)
-            data_len = np.array([len(i) for i in data])
-            if np.any(data_len == 2):
-                self.label_size = np.max([i[1] for i in data if len(i) == 2]) + 1
-            elif np.all(data_len == 1):
-                if label_size is None:
-                    raise ValueError(
-                        "Label_size can not be induced from fully labeled set, label_size must be provided.")
-                self.label_size = label_size
+            if label_size is None:
+                self.label_size = infer_label_size_multilabel(data, check_arr=False)
             else:
-                raise ValueError(
-                    "All elements in indexes should be a tuple, with length = 1 (example_index, ) "
-                    "to query all labels or length = 2 (example_index, [label_indexes]) to query specific labels.")
+                self.label_size = label_size
 
             # decompose all labels queries.
-            decomposed_data = []
-            for item in data:
-                if len(item) == 1:
-                    for i in range(self.label_size):
-                        decomposed_data.append((item[0], i))
-                else:
-                    if isinstance(item[1], collections.Iterable):
-                        label_ind = [i for i in item[1] if 0 <= i < self.label_size]
-                    else:
-                        assert (0 <= item[1] < self.label_size)
-                        label_ind = [item[1]]
-                    for j in range(len(label_ind)):
-                        decomposed_data.append((item[0], label_ind[j]))
+            decomposed_data = flattern_multilabel_index(data, self.label_size, check_arr=False)
 
             self._innercontainer = set(decomposed_data)
             if len(self._innercontainer) != len(decomposed_data):
@@ -264,19 +244,9 @@ class MultiLabelIndexCollection(IndexCollection):
     def difference_update(self, other):
         """ Remove all elements of another set from this set. """
         if isinstance(other, (list, np.ndarray, MultiLabelIndexCollection)):
-            for item in other:
-                if len(item) == 1:
-                    item = [(item[0], i) for i in range(self.label_size)]
-                    for iitem in item:
-                        self.discard(iitem)
-                else:
-                    if isinstance(item[1], collections.Iterable):
-                        label_ind = [i for i in item[1] if 0 <= i < self.label_size]
-                    else:
-                        assert (0 <= item[1] < self.label_size)
-                        label_ind = [item[1]]
-                    for j in range(len(label_ind)):
-                        self.discard((item[0], label_ind[j]))
+            label_ind = flattern_multilabel_index(other, self.label_size)
+            for j in label_ind:
+                self.discard(j)
         elif isinstance(other, tuple):
             self.discard(other)
         else:
@@ -288,19 +258,9 @@ class MultiLabelIndexCollection(IndexCollection):
     def update(self, other):
         """ Update a set with the union of itself and others. """
         if isinstance(other, (list, np.ndarray, MultiLabelIndexCollection)):
-            for item in other:
-                if len(item) == 1:
-                    item = [(item[0], i) for i in range(self.label_size)]
-                    for iitem in item:
-                        self.add(iitem)
-                else:
-                    if isinstance(item[1], collections.Iterable):
-                        label_ind = [i for i in item[1] if 0 <= i < self.label_size]
-                    else:
-                        assert (0 <= item[1] < self.label_size)
-                        label_ind = [item[1]]
-                    for j in range(len(label_ind)):
-                        self.add((item[0], label_ind[j]))
+            label_ind = flattern_multilabel_index(other, self.label_size)
+            for j in label_ind:
+                self.add(j)
         elif isinstance(other, tuple):
             self.add(other)
         else:

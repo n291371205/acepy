@@ -57,8 +57,8 @@ class aceThreading:
         the path to save the result files.
     """
 
-    def __init__(self, examples, labels, train_idx, test_idx, unlabel_index, label_index, max_thread=None,
-                 refresh_interval=1, saving_path='.'):
+    def __init__(self, examples, labels, train_idx, test_idx, unlabel_index, label_index, target_func,
+                 max_thread=None, refresh_interval=1, saving_path='.'):
         self.examples = examples
         self.labels = labels
         self.train_idx = train_idx
@@ -67,6 +67,7 @@ class aceThreading:
         self.unlabel_index = unlabel_index
         self.refresh_interval = refresh_interval
         self.saving_path = os.path.abspath(saving_path)
+        self.recover_arr = None
 
         # the path to store results of each thread.
         tp_path = os.path.join(self.saving_path, 'AL_result')
@@ -93,7 +94,17 @@ class aceThreading:
         # for recovering the workspace
         self.alive_thread = [False] * self._round_num
 
-    def start_all_threads(self, thread_func, global_parameters=None):
+        # check target function validity
+        argname = inspect.getfullargspec(target_func)[0]
+        for name1 in ['round', 'train_id', 'test_id', 'Ucollection', 'Lcollection', 'saver', 'examples', 'labels',
+                      'global_parameters']:
+            if name1 not in argname:
+                raise ValueError(
+                    "the parameters of target_func must be (round, train_id, test_id, "
+                    "Ucollection, Lcollection, saver, examples, labels, global_parameters)")
+        self._target_func = target_func
+
+    def start_all_threads(self, global_parameters=None):
         """Start multi-threading.
 
         this function will automatically invoke the thread_func function with the parameters:
@@ -105,49 +116,39 @@ class aceThreading:
 
         Parameters
         ----------
-        thread_func: function object
+        target_func: function object
             the function to parallel, the parameters must accord the appointment.
 
         global_parameters: dict, optional (default=None)
             the additional variables to implement user-defined query-strategy.
         """
-        self.__init_threads(thread_func, global_parameters)
+        self.__init_threads(global_parameters)
         # start thread
         self.__start_all_threads()
 
-    def __init_threads(self, thread_func, global_parameters=None):
-        # check validity
-        argname = inspect.getfullargspec(thread_func)[0]
-        for name1 in ['round', 'train_id', 'test_id', 'Ucollection', 'Lcollection', 'saver', 'examples', 'labels',
-                      'global_parameters']:
-            if name1 not in argname:
-                raise ValueError(
-                    "the parameters of thread_func must be (round, train_id, test_id, "
-                    "Ucollection, Lcollection, saver, examples, labels, global_parameters)")
-
+    def __init_threads(self, global_parameters=None):
         if global_parameters is not None:
             assert (isinstance(global_parameters, dict))
-        self._thread_func = thread_func
         self._global_parameters = global_parameters
 
         # init thread objects
         for i in range(self._round_num):
-            t = threading.Thread(target=thread_func, name=str(i), kwargs={
+            t = threading.Thread(target=self._target_func, name=str(i), kwargs={
                 'round': i, 'train_id': self.train_idx[i], 'test_id': self.test_idx[i],
                 'Ucollection': copy.deepcopy(self.unlabel_index[i]), 'Lcollection': copy.deepcopy(self.label_index[i]),
                 'saver': self.saver[i], 'examples': self.examples, 'labels': self.labels,
                 'global_parameters': global_parameters})
             self.threads.append(t)
 
-    def __start_all_threads(self, recover_arr=None):
-        if recover_arr is None:
-            recover_arr = [True] * self._round_num
+    def __start_all_threads(self):
+        if self.recover_arr is None:
+            self.recover_arr = [True] * self._round_num
         else:
-            assert (len(recover_arr) == self._round_num)
+            assert (len(self.recover_arr) == self._round_num)
         # start thread
         available_thread = self._round_num
         for i in range(self._round_num):
-            if not recover_arr[i]:
+            if not self.recover_arr[i]:
                 continue
             if available_thread > 0:
                 self.threads[i].start()
@@ -176,13 +177,14 @@ class aceThreading:
 
         # waiting for other threads.
         for i in range(self._round_num):
-            if not recover_arr[i]:
+            if not self.recover_arr[i]:
                 continue
             while self.threads[i].is_alive():
                 if self._if_refresh():
                     print(self)
             self._update_thread_state()
             self.save()
+        print(self)
 
     def __repr__(self):
         tb = pt.PrettyTable()
@@ -227,7 +229,7 @@ class aceThreading:
             self.saving_path,
             self._round_num,
             self.max_thread,
-            self._thread_func,
+            self._target_func,
             self._global_parameters,
             self.alive_thread,
             self.saver
@@ -235,7 +237,7 @@ class aceThreading:
         return pickle_seq
 
     def __setstate__(self, state):
-        self.examples, self.labels, self.train_idx, self.test_idx, self.label_index, self.unlabel_index, self.refresh_interval, self.saving_path, self._round_num, self.max_thread, self._thread_func, self._global_parameters, self.alive_thread, self.saver = state
+        self.examples, self.labels, self.train_idx, self.test_idx, self.label_index, self.unlabel_index, self.refresh_interval, self.saving_path, self._round_num, self.max_thread, self._target_func, self._global_parameters, self.alive_thread, self.saver = state
 
     def save(self):
         if os.path.isdir(self.saving_path):
@@ -260,7 +262,7 @@ class aceThreading:
         # init self
         recover_thread = cls(breakpoint.examples, breakpoint.labels, breakpoint.train_idx,
                                         breakpoint.test_idx, breakpoint.unlabel_index, breakpoint.label_index,
-                                        breakpoint.max_thread,
+                                        breakpoint._target_func, breakpoint.max_thread,
                                         breakpoint.refresh_interval, breakpoint.saving_path)
         # loading tmp files
         state_path = os.path.join(breakpoint.saving_path, 'AL_result')
@@ -284,8 +286,9 @@ class aceThreading:
                 tmp = recover_thread.saver[i].get_workspace()
                 recover_thread.unlabel_index[i] = tmp[2]
                 recover_thread.label_index[i] = tmp[3]
-        recover_thread.__init_threads(breakpoint._thread_func, breakpoint._global_parameters)
-        recover_thread.__start_all_threads(recover_arr)
+        recover_thread.recover_arr = recover_arr
+        # recover_thread.__init_threads(breakpoint._global_parameters)
+        # recover_thread.__start_all_threads()
         return recover_thread
 
 

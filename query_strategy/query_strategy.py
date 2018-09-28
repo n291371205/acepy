@@ -14,6 +14,8 @@ from sklearn.utils.validation import check_X_y
 from sklearn.svm import SVC
 import utils.base
 import utils.tools
+import warnings
+warnings.filterwarnings('ignore')
 
 
 class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
@@ -365,7 +367,10 @@ class QueryInstanceQBC(utils.base.BaseQueryStrategy):
 
         # bagging
         from sklearn.ensemble import BaggingClassifier
-        bagging = BaggingClassifier(model, n_jobs=n_jobs)
+        if n_jobs is None:
+            bagging = BaggingClassifier(model)
+        else:
+            bagging = BaggingClassifier(model, n_jobs=n_jobs)
         bagging.fit(label_x, label_y)
         est_arr = bagging.estimators_
 

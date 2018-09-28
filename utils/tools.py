@@ -35,6 +35,108 @@ def check_matrix(matrix):
     return matrix
 
 
+def infer_label_size_multilabel(index_arr, check_arr=True):
+    """Infer the label size from a set of index arr.
+
+    raise if all index are example index only.
+
+    Parameters
+    ----------
+    index_arr: list or np.ndarray
+        index array.
+
+    Returns
+    -------
+    label_size: int
+        the inferred label size.
+    """
+    if check_arr:
+        index_arr = check_index_multilabel(index_arr)
+    data_len = np.array([len(i) for i in index_arr])
+    if np.any(data_len == 2):
+        label_size = np.max([i[1] for i in index_arr if len(i) == 2]) + 1
+    elif np.all(data_len == 1):
+        raise ValueError(
+            "Label_size can not be induced from fully labeled set, label_size must be provided.")
+    else:
+        raise ValueError(
+            "All elements in indexes should be a tuple, with length = 1 (example_index, ) "
+            "to query all labels or length = 2 (example_index, [label_indexes]) to query specific labels.")
+    return label_size
+
+
+def flattern_multilabel_index(index_arr, label_size=None, check_arr=True):
+    if check_arr:
+        index_arr = check_index_multilabel(index_arr)
+    if label_size is None:
+        label_size = infer_label_size_multilabel(index_arr)
+    else:
+        assert (label_size > 0)
+    decomposed_data = []
+    for item in index_arr:
+        if len(item) == 1:
+            for i in range(label_size):
+                decomposed_data.append((item[0], i))
+        else:
+            if isinstance(item[1], collections.Iterable):
+                label_ind = [i for i in item[1] if 0 <= i < label_size]
+            else:
+                assert (0 <= item[1] < label_size)
+                label_ind = [item[1]]
+            for j in range(len(label_ind)):
+                decomposed_data.append((item[0], label_ind[j]))
+    return decomposed_data
+
+
+def integrate_multilabel_index(index_arr, label_size=None, check_arr=True):
+    """ Integrated the indexes of multi-label.
+
+    Parameters
+    ----------
+    index_arr: list or np.ndarray
+        multi-label index array.
+
+    label_size: int, optional (default = None)
+        the size of label set. If not provided, an inference is attempted.
+        raise if the inference is failed.
+
+    check_arr: bool, optional (default = True)
+        whether to check the validity of index array.
+
+    Returns
+    -------
+    array: list
+        the integrated array.
+    """
+    if check_arr:
+        index_arr = check_index_multilabel(index_arr)
+    if label_size is None:
+        label_size = infer_label_size_multilabel(index_arr)
+    else:
+        assert (label_size > 0)
+
+    integrated_arr = []
+    integrated_dict = {}
+    for index in index_arr:
+        example_ind = index[0]
+        if len(index) == 1:
+            integrated_dict[example_ind] = set(range(label_size))
+        else:
+            # length = 2
+            if example_ind in integrated_dict.keys():
+                integrated_dict[example_ind].update(set(index[1]))
+            else:
+                integrated_dict[example_ind] = set(index[1])
+
+    for item in integrated_dict.items():
+        if len(item[1]) == label_size:
+            integrated_arr.append((item[0],))
+        else:
+            integrated_arr.append((item[0], tuple(item[0])))
+
+    return integrated_arr
+
+
 def get_labelmatrix_in_multilabel(index, label_matrix, unknown_element=0):
     """get data matrix by giving index in multi-label setting.
 
@@ -105,7 +207,7 @@ def get_labelmatrix_in_multilabel(index, label_matrix, unknown_element=0):
 
         # construct mat
         if ind_row == -1:
-            tmp = np.zeros((1, ele_bound))
+            tmp = np.zeros((1, ele_bound)) + unknown_element
             tmp[0, label_ind] = label_matrix[example_ind, label_ind]
             if label_indexed is None:
                 label_indexed = tmp.copy()
@@ -155,6 +257,7 @@ def get_Xy_in_multilabel(index, X, y, unknown_element=0):
         raise ValueError("Different length of instances and labels found.")
 
     label_matrix, ins_index = get_labelmatrix_in_multilabel(index, y)
+    return X[ins_index, :], label_matrix
 
 
 def get_gaussian_kernel_mat(X, sigma=1.0, check_arr=True):
