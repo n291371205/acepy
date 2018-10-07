@@ -27,7 +27,7 @@ class KnowledgeDB:
 class ElementKnowledgeDB(BaseDB):
     """Class to store fine-grained (element-wise) data.
 
-    Both the example AND label are not require to be an array-like object,
+    Both the example AND label are not required to be an array-like object,
     they can be complicated object.
     """
 

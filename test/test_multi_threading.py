@@ -24,7 +24,7 @@ reg = linear_model.LogisticRegression()
 qs = QueryInstanceQBC(X,y,disagreement='vote_entropy')
 ae = AlExperiment(method_name='QBC_ve')
 
-
+# Estimator, performanceMeasure,
 def run_thread(round, train_id, test_id, Ucollection, Lcollection, saver, examples, labels, global_parameters):
     # initialize object
     reg.fit(X=examples[Lcollection.index, :], y=labels[Lcollection.index])

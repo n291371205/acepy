@@ -14,8 +14,6 @@ from sklearn.utils.validation import check_X_y
 from sklearn.svm import SVC
 import utils.base
 import utils.tools
-import warnings
-warnings.filterwarnings('ignore')
 
 
 class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
