@@ -8,6 +8,7 @@ methods for various situation
 from __future__ import division
 
 import collections
+import warnings
 
 import numpy as np
 from sklearn.utils.validation import check_X_y
@@ -369,7 +370,9 @@ class QueryInstanceQBC(utils.base.BaseQueryStrategy):
             bagging = BaggingClassifier(model)
         else:
             bagging = BaggingClassifier(model, n_jobs=n_jobs)
-        bagging.fit(label_x, label_y)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            bagging.fit(label_x, label_y)
         est_arr = bagging.estimators_
 
         # calc score
