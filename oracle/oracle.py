@@ -124,13 +124,13 @@ class Oracle(utils.base.BaseVirtualOracle):
                             (str(self._label_type), str(type(label))))
         if self._instance_flag:
             if example is None:
-                raise ValueError("This oracle has the instance information,"
-                                 "must provide example parameter when adding entry")
+                raise Exception("This oracle has the instance information,"
+                                "must provide example parameter when adding entry")
             self._exa2ind[example] = index
         if self._cost_flag:
             if cost is None:
-                raise ValueError("This oracle has the cost information,"
-                                 "must provide cost parameter when adding entry")
+                raise Exception("This oracle has the cost information,"
+                                "must provide cost parameter when adding entry")
             self._ind2all[index] = (label, cost)
         else:
             self._ind2all[index] = label
@@ -220,7 +220,7 @@ class Oracle(utils.base.BaseVirtualOracle):
             corresponding costs produced by query.
         """
         if not self._instance_flag:
-            raise ValueError("This oracle do not have the instance information, query_by_instance is not supported")
+            raise Exception("This oracle do not have the instance information, query_by_instance is not supported")
         if not isinstance(queried_examples, (list, np.ndarray)):
             raise TypeError("An list or numpy.ndarray is expected, but received:%s" % str(type(queried_examples)))
         if len(np.shape(queried_examples)) == 1:
@@ -359,19 +359,19 @@ class OracleQueryMultiLabel(Oracle):
             and is one-to-one correspondence of y, default is 1.
         """
         if len(label) != self._label_shape[1]:
-            raise TypeError("Different dimension of labels found when adding entries: %s is expected but received: %s" %
+            raise ValueError("Different dimension of labels found when adding entries: %s is expected but received: %s" %
                             (str(self._label_shape[1]), str(len(label))))
         if self._instance_flag:
             if example is None:
-                raise ValueError("This oracle has the instance information,"
+                raise Exception("This oracle has the instance information,"
                                  "must provide example parameter when adding entry")
             self._exa2ind[example] = index
         if self._cost_flag:
             if cost is None:
-                raise ValueError("This oracle has the cost information,"
+                raise Exception("This oracle has the cost information,"
                                  "must provide cost parameter when adding entry")
             if len(cost) != self._label_shape[1]:
-                raise TypeError(
+                raise ValueError(
                     "Different dimension of cost found when adding entries: %s is expected but received: %s" %
                     (str(self._label_shape[1]), str(len(cost))))
             self._ind2all[index] = (np.array(label), cost)
@@ -477,7 +477,7 @@ class OracleQueryMultiLabel(Oracle):
             corresponding costs produced by query.
         """
         if not self._instance_flag:
-            raise ValueError("This oracle do not have the instance information, query_by_instance is not supported")
+            raise Exception("This oracle do not have the instance information, query_by_instance is not supported")
         # check validity of the given indexes
         if not isinstance(indexes, (list, np.ndarray)):
             indexes = [indexes]
@@ -541,12 +541,12 @@ if __name__ == '__main__':
     print(a.query_by_index(1))
     a.add_knowledge(labels=0, indexes=3)
     print(a.query_by_index([3]))
-    a.add_knowledge(labels=[4,5], indexes=[4,5])
+    a.add_knowledge(labels=[4, 5], indexes=[4, 5])
     print(a.query_by_index([5]))
 
     a = Oracle([[1, 2, 3], [4, 5, 6]])
     print(a.query_by_index(1))
-    a.add_knowledge(labels=[0,2,1], indexes=2)
+    a.add_knowledge(labels=[0, 2, 1], indexes=2)
     print(a.query_by_index([2]))
     a.add_knowledge(labels=[[1, 2, 3], [4, 5, 6]], indexes=[3, 4])
     print(a.query_by_index([4]))
@@ -556,6 +556,6 @@ if __name__ == '__main__':
     print(b.query_by_index((0, (0, 1))))
     print(b.query_by_index((0, [0, 1])))
     print(b.query_by_index((0, 0)))
-    b.add_knowledge([7,8,9], 2)
+    b.add_knowledge([7, 8, 9], 2)
     print(b.query_by_index((2, 0)))
-    print(b.query_by_index([(2, 0),(1, )]))
+    print(b.query_by_index([(2, 0), (1,)]))

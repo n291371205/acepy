@@ -93,7 +93,7 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
 
         # get unlabel_x
         if self.X is None:
-            raise ValueError('Data matrix is not provided, use select_by_prediction_mat() instead.')
+            raise Exception('Data matrix is not provided, use select_by_prediction_mat() instead.')
         if not isinstance(unlabel_index, np.ndarray):
             unlabel_index = np.array([i for i in unlabel_index])
         unlabel_x = self.X[unlabel_index, :]
@@ -107,7 +107,7 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
             assert (len(spv) in [1, 2])
             if len(spv) == 2:
                 if spv[1] != 1:
-                    raise ValueError('1d or 2d with 1 column array is expected, but received: \n%s' % str(pv))
+                    raise Exception('1d or 2d with 1 column array is expected, but received: \n%s' % str(pv))
                 else:
                     pv = np.array(pv).flatten()
             argpv = np.argsort(pv)
@@ -154,7 +154,7 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
             assert (len(spv) in [1, 2])
             if len(spv) == 2:
                 if spv[1] != 1:
-                    raise ValueError('1d or 2d with 1 column array is expected, but received: \n%s' % str(pv))
+                    raise Exception('1d or 2d with 1 column array is expected, but received: \n%s' % str(pv))
                 else:
                     pv = np.array(pv).flatten()
             argpv = np.argsort(pv)
@@ -206,13 +206,13 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
             shape of pv
         """
         if not hasattr(model, 'predict_proba'):
-            raise TypeError('model object must implement predict_proba methods in %s measure.' % self.measure)
+            raise Exception('model object must implement predict_proba methods in %s measure.' % self.measure)
         pv = model.predict_proba(unlabel_x)
         if not isinstance(pv, np.ndarray):
             pv = np.asarray(pv)
         spv = np.shape(pv)
         if len(spv) != 2 or spv[1] == 1:
-            raise ValueError('2d array with [n_samples, n_class] is expected, but received: \n%s' % str(pv))
+            raise Exception('2d array with [n_samples, n_class] is expected, but received: \n%s' % str(pv))
         return pv, spv
 
     @classmethod
@@ -234,8 +234,8 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
             pv = np.asarray(predict_proba)
         spv = np.shape(pv)
         if len(spv) != 2 or spv[1] == 1:
-            raise ValueError('2d array with the shape of [n_samples, n_class]'
-                             ' is expected, but received: \n%s' % str(pv))
+            raise Exception('2d array with the shape of [n_samples, n_class]'
+                            ' is expected, but received: \n%s' % str(pv))
         # calc entropy
         entropy = [-np.sum(vec * np.log(vec)) for vec in pv]
         return entropy
@@ -350,7 +350,7 @@ class QueryInstanceQBC(utils.base.BaseQueryStrategy):
 
         # get unlabel_x
         if self.X is None or self.y is None:
-            raise ValueError('Data matrix is not provided, use calc_vote_entropy() instead.')
+            raise Exception('Data matrix is not provided, use calc_vote_entropy() instead.')
         if not isinstance(unlabel_index, np.ndarray):
             unlabel_index = np.array([i for i in unlabel_index])
         if not isinstance(label_index, np.ndarray):
@@ -397,8 +397,8 @@ class QueryInstanceQBC(utils.base.BaseQueryStrategy):
         shapes = [np.shape(X) for X in arys if X is not None]
         uniques = np.unique(shapes, axis=0)
         if len(uniques) > 1:
-            raise ValueError("Found input variables with inconsistent numbers of"
-                             " shapes: %r" % [int(l) for l in shapes])
+            raise Exception("Found input variables with inconsistent numbers of"
+                            " shapes: %r" % [int(l) for l in shapes])
         committee_size = len(arys)
         input_shape = uniques[0]
         return input_shape, committee_size
@@ -489,7 +489,7 @@ class QueryInstanceQBC(utils.base.BaseQueryStrategy):
                         tmp += instance_mat[committee, lab] * np.log(instance_mat[committee, lab] / committee_consensus)
                 score.append(tmp)
         else:
-            raise ValueError(
+            raise Exception(
                 "A 2D probabilistic prediction matrix must be provided, with the shape like [n_samples, n_class]")
         return score
 

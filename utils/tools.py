@@ -56,7 +56,7 @@ def infer_label_size_multilabel(index_arr, check_arr=True):
     if np.any(data_len == 2):
         label_size = np.max([i[1] for i in index_arr if len(i) == 2]) + 1
     elif np.all(data_len == 1):
-        raise ValueError(
+        raise Exception(
             "Label_size can not be induced from fully labeled set, label_size must be provided.")
     else:
         raise ValueError(

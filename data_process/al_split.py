@@ -100,7 +100,7 @@ class ExperimentSetting:
                  query_type='AllLabels', test_ratio=0.3, initial_label_rate=0.05,
                  split_count=10, all_class=True, partially_labeled=False, performance='Accuracy', saving_path='.'):
         if X is None and y is None and instance_indexes is None:
-            raise ValueError("Must provide one of X, y or instance_indexes.")
+            raise Exception("Must provide one of X, y or instance_indexes.")
         self._index_len = None
 
         # check and record parameters
@@ -142,7 +142,7 @@ class ExperimentSetting:
         if check_query_type(query_type):
             self.query_type = query_type
         else:
-            raise NotImplemented("Query type %s is not implemented." % type)
+            raise NotImplementedError("Query type %s is not implemented." % type)
         self.saving_path = saving_path
         self.split_count = split_count
         self.test_ratio = test_ratio
@@ -315,7 +315,7 @@ def split(X=None, y=None, instance_indexes=None, query_type=None, test_ratio=0.3
     """
     # check parameters
     if X is None and y is None and instance_indexes is None:
-        raise ValueError("Must provide one of X, y or instance_indexes.")
+        raise Exception("Must provide one of X, y or instance_indexes.")
     len_of_parameters = [len(X) if X is not None else None, len(y) if y is not None else None,
                          len(instance_indexes) if instance_indexes is not None else None]
     number_of_instance = np.unique([i for i in len_of_parameters if i is not None])
@@ -327,7 +327,7 @@ def split(X=None, y=None, instance_indexes=None, query_type=None, test_ratio=0.3
         query_type = 'AllLabels'
     else:
         if not check_query_type(query_type):
-            raise NotImplemented("Query type %s is not implemented." % type)
+            raise NotImplementedError("Query type %s is not implemented." % type)
     if instance_indexes is not None:
         if not isinstance(instance_indexes, (list, np.ndarray)):
             raise TypeError("An array-like object is expected, but received: %s" % str(type(instance_indexes)))
@@ -354,7 +354,7 @@ def split(X=None, y=None, instance_indexes=None, query_type=None, test_ratio=0.3
             unlabel_idx.append(tp_train[cutpoint:])
         else:
             if y is None:
-                raise ValueError("y must be provided when all_class flag is True.")
+                raise Exception("y must be provided when all_class flag is True.")
             y = check_array(y, ensure_2d=False, dtype=None)
             if y.ndim == 1:
                 label_num = len(np.unique(y))
@@ -445,7 +445,7 @@ def split_multi_label(y=None, label_shape=None, test_ratio=0.3, initial_label_ra
 
     # check parameters
     if y is None and label_shape is None:
-        raise ValueError("Must provide one of y or label_shape.")
+        raise Exception("Must provide one of y or label_shape.")
     data_shape = None
     if y is not None:
         y = check_matrix(y)

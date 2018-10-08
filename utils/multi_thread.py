@@ -99,7 +99,7 @@ class aceThreading:
         for name1 in ['round', 'train_id', 'test_id', 'Ucollection', 'Lcollection', 'saver', 'examples', 'labels',
                       'global_parameters']:
             if name1 not in argname:
-                raise ValueError(
+                raise NameError(
                     "the parameters of target_func must be (round, train_id, test_id, "
                     "Ucollection, Lcollection, saver, examples, labels, global_parameters)")
         self._target_func = target_func

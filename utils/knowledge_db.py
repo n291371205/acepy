@@ -89,7 +89,7 @@ class ElementKnowledgeDB(BaseDB):
         """
         if self._instance_flag:
             if example is None:
-                raise ValueError("This oracle has the instance information,"
+                raise Exception("This oracle has the instance information,"
                                  "must provide example parameter when adding entry")
             self._exa2ind[example] = select_index
             self._ind2exa[select_index] = example
@@ -113,7 +113,7 @@ class ElementKnowledgeDB(BaseDB):
         """
         """Remove an element."""
         if index is None and example is None:
-            raise ValueError("Must provide one of index or example")
+            raise Exception("Must provide one of index or example")
         if index is not None:
             if index not in self._indexes:
                 warnings.warn("Index %s is not in the data base, skipped." % str(index),
@@ -123,7 +123,7 @@ class ElementKnowledgeDB(BaseDB):
             self._indexes.pop(index)
         if example is not None:
             if not self._instance_flag:
-                raise ValueError("This data base is not initialized with examples, discard by example is illegal.")
+                raise Exception("This data base is not initialized with examples, discard by example is illegal.")
             else:
                 if example not in self._exa2ind:
                     warnings.warn("example %s is not in the data base, skipped." % str(example),
@@ -210,7 +210,7 @@ class ElementKnowledgeDB(BaseDB):
             the retrieved data
         """
         if not self._instance_flag:
-            raise ValueError("This oracle do not have the instance information, query_by_instance is not supported")
+            raise Exception("This oracle do not have the instance information, query_by_instance is not supported")
         if not isinstance(examples, (list, np.ndarray)):
             raise TypeError("An list or numpy.ndarray is expected, but received:%s" % str(type(examples)))
         if len(np.shape(examples)) == 1:
@@ -343,7 +343,7 @@ class MatrixKnowledgeDB(BaseDB):
         self.cost_inall += np.sum(cost)
         if self._instance_flag:
             if example is None:
-                raise ValueError("Example must be provided in a database initialized with examples.")
+                raise Exception("Example must be provided in a database initialized with examples.")
             else:
                 self._X = np.append(self._X, [example], axis=0)
         return self
@@ -379,7 +379,7 @@ class MatrixKnowledgeDB(BaseDB):
     def discard(self, index=None, example=None):
         """Remove an element."""
         if index is None and example is None:
-            raise ValueError("Must provide one of index or example")
+            raise Exception("Must provide one of index or example")
         if index is not None:
             if index not in self._indexes:
                 warnings.warn("Index %s is not in the data base, skipped." % str(index),
@@ -389,7 +389,7 @@ class MatrixKnowledgeDB(BaseDB):
             ind = np.argwhere(self._indexes == index)
         if example is not None:
             if not self._instance_flag:
-                raise ValueError("This data base is not initialized with examples, discard by example is illegal.")
+                raise Exception("This data base is not initialized with examples, discard by example is illegal.")
             else:
                 ind = np.argwhere(self._X == example)
         mask = np.ones(len(self._indexes), dtype=bool)
@@ -441,7 +441,7 @@ class MatrixKnowledgeDB(BaseDB):
             the retrieved data
         """
         if not self._instance_flag:
-            raise ValueError("This data base is not initialized with examples, retrieve by example is illegal.")
+            raise Exception("This data base is not initialized with examples, retrieve by example is illegal.")
         examples = np.asarray(examples)
         if examples.ndim == 1:
             ind = np.argwhere(self._X == examples).flatten()  # will return empty array if not found.
@@ -455,7 +455,7 @@ class MatrixKnowledgeDB(BaseDB):
             # ind = [np.argwhere(self._X == examples[i]).flatten() for i in range(len(examples))]
             return self._X[ind, ], self._y[ind, ]
         else:
-            raise ValueError("A 1D or 2D array is expected. But received: %d" % examples.ndim)
+            raise Exception("A 1D or 2D array is expected. But received: %d" % examples.ndim)
 
     def get_examples(self):
         """Get all examples in the data base
