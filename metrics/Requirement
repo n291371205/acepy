@@ -1,0 +1,11 @@
+Hamming Loss
+Ranking Loss
+One Error
+Coverage
+Average Precision
+MicroAUC
+这些都是多标记的指标，他给的矩阵一定是一个2维的[n_samples, n_classes]的样子
+
+
+实现 Expected Error Reduction
+
