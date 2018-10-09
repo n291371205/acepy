@@ -1,7 +1,6 @@
 from sklearn.datasets import load_iris
-from data_process.al_split import ExperimentSetting
 from analyser.experiment_analyser import ExperimentAnalyser
-from experiment_saver.al_experiment import AlExperiment
+from experiment_saver.al_experiment import AlExperiment, ExperimentSetting
 from sklearn.ensemble import RandomForestClassifier
 from utils.knowledge_db import MatrixKnowledgeDB
 from experiment_saver.state import State
@@ -25,7 +24,7 @@ for round in range(5):
     reg.fit(X=db.get_examples(), y=db.get_labels())
 
     while len(Ucollection) > 10:
-        select_index = qs.select(Ucollection, reg)
+        select_index = qs.select(Lcollection, Ucollection, reg)
         queried_labels, cost = oracle.query_by_index(select_index)
         Ucollection.difference_update(select_index)
         Lcollection.update(select_index)

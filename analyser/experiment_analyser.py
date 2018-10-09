@@ -25,8 +25,7 @@ class ExperimentAnalyser:
         1.3. Extract experiment settings.
     2. Plotting:
         2.1. line chart (different x,y,axis, mean+-std bars)
-        2.2. histogram
-    3. Statistic:
+    3. Statistic and tools:
         3.1. Paired t-test
         3.2. Sort
     """
@@ -256,9 +255,9 @@ class ExperimentAnalyser:
         H: int
             the result of the test.
             H=0     -- indicates that the null hypothesis ("mean is zero")
-                    cannot be rejected at the 5% significance level
+                    cannot be rejected at the alpha% significance level
                     (No significance difference between a and b).
-            H=1     -- indicates that the null hypothesis can be rejected at the 5% level
+            H=1     -- indicates that the null hypothesis can be rejected at the alpha% level
                     (a and b have significance difference).
 
         Examples

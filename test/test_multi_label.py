@@ -1,7 +1,7 @@
 from sklearn.datasets import load_iris
 from data_process.al_split import ExperimentSetting
 from analyser.experiment_analyser import ExperimentAnalyser
-from experiment_saver.al_experiment import AlExperiment
+from experiment_saver.al_experiment import AlExperiment, ExperimentSetting
 from sklearn.ensemble import RandomForestClassifier
 from utils.knowledge_db import MatrixKnowledgeDB
 from experiment_saver.state import State

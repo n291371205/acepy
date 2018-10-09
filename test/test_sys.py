@@ -43,7 +43,7 @@ for round in range(5):
     saver = StateIO(round, train_id, test_id, Ucollection, Lcollection, initial_point=accuracy)
     # saver = StateIO(round, train_id, test_id, Ucollection, Lcollection)
     while len(Ucollection) > 10:
-        select_index = qs.select(Ucollection, reg)
+        select_index = qs.select(Lcollection, Ucollection, reg)
         # accerlate version is available
         # sub_U = Ucollection.random_sampling()
         values, costs = oracle.query_by_index(select_index)
@@ -90,7 +90,7 @@ for round in range(5):
     accuracy = sum(pred == y[test_id]) / len(test_id)
     saver = StateIO(round, train_id, test_id, Ucollection, Lcollection, initial_point=accuracy)
     while len(Ucollection) > 10:
-        select_index = qs.select(Ucollection)
+        select_index = qs.select(None, Ucollection)
         # accerlate version is available
         # sub_U = Ucollection.random_sampling()
         values, costs = oracle.query_by_index(select_index)

@@ -17,7 +17,7 @@ def check_query_type(type):
             PartLabels: Query part of labels of an instance (Only available in multi-label setting)
         NotImplementedQueryType
             Relations: Query relations between two object
-            Features: Query features of instances
+            Features: Query unlab_features of instances
             Examples: Query examples given constrains
 
     Parameters

@@ -21,7 +21,7 @@ train_id, test_id, Ucollection, Lcollection = saver.recovery(5)
 reg.fit(X=X[Lcollection.index, :], y=y[Lcollection.index])
 
 while len(Ucollection)>10:
-    select_index = qs.select(Ucollection,reg,batch_size=2)
+    select_index = qs.select(Lcollection, Ucollection,reg,batch_size=2)
     # accerlate version is available
     # sub_U = Ucollection.random_sampling()
     values, costs = oracle.query_by_index(select_index)

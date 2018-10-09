@@ -11,7 +11,6 @@ import collections
 import warnings
 
 import numpy as np
-from sklearn.utils.validation import check_X_y
 from sklearn.svm import SVC
 import utils.base
 import utils.tools
@@ -59,14 +58,9 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
         if scenario not in ['pool', 'stream', 'membership']:
             raise ValueError("scenario must in ['pool', 'stream', 'membership']")
         self.scenario = scenario
-        if X is not None and y is not None:
-            self.X, self.y = check_X_y(X, y, accept_sparse='csc', multi_output=True)
-        else:
-            # check validity and calculate shape etc.
-            self.X = X
-            self.y = y
+        super(QueryInstanceUncertainty, self).__init__(X, y)
 
-    def select(self, unlabel_index, model=SVC(), batch_size=1):
+    def select(self, label_index, unlabel_index, model=SVC(), batch_size=1):
         """Select index in unlabel_index to query
 
         Parameters
@@ -251,7 +245,7 @@ class QueryRandom(utils.base.BaseQueryStrategy):
             raise ValueError("scenario must in ['pool', 'stream', 'membership']")
         self.scenario = scenario
 
-    def select(self, unlabel_index, batch_size=1):
+    def select(self, label_index, unlabel_index, batch_size=1):
         """
 
         Parameters
@@ -302,11 +296,7 @@ class QueryInstanceQBC(utils.base.BaseQueryStrategy):
         if scenario not in ['pool', 'stream', 'membership']:
             raise ValueError("scenario must in ['pool', 'stream', 'membership']")
         self.scenario = scenario
-        if X is not None and y is not None:
-            self.X, self.y = check_X_y(X, y, accept_sparse='csc', multi_output=True)
-        else:
-            self.X = X
-            self.y = y
+        super(QueryInstanceQBC, self).__init__(X,y)
         if disagreement in ['vote_entropy', 'KL_divergence']:
             self.disagreement = disagreement
         else:

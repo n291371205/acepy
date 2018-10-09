@@ -21,8 +21,9 @@ X, y = load_iris(return_X_y=True)
 Train_idx, Test_idx, U_pool, L_pool = split(X=X, y=y, test_ratio=0.3, initial_label_rate=0.2, split_count=10)
 ea = ExperimentAnalyser()
 reg = linear_model.LogisticRegression()
-qs = QueryInstanceQBC(X,y,disagreement='vote_entropy')
+qs = QueryInstanceQBC(X, y, disagreement='vote_entropy')
 ae = AlExperiment(method_name='QBC_ve')
+
 
 # Estimator, performanceMeasure,
 def run_thread(round, train_id, test_id, Ucollection, Lcollection, saver, examples, labels, global_parameters):
