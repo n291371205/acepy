@@ -8,31 +8,96 @@ Implement classical methods
 
 from __future__ import division
 import numpy as np
+from scipy.sparse import csr_matrix
 
 __all__ = [
     'accuracy'
 ]
 
-def _weighted_sum(sample_score, sample_weight, normalize=False):
-    if normalize:
-        return np.average(sample_score, weights=sample_weight)
-    elif sample_weight is not None:
-        return np.dot(sample_score, sample_weight)
+
+def check_consistent_length(*arrays):
+    """
+        Check that all arrays have consistent first dimensions.
+    """
+    lengths = [X for X in arrays if X is not None]
+    uniques = np.unique(lengths)
+    if len(uniques) > 1:
+        raise ValueError("Found input variables with inconsistent numbers of"
+                         " samples: %r" % [int(l) for l in lengths])
+
+
+def type_of_target(y):
+    """Determine the type of data indicated by the target.
+    """
+    if (len(np.unique(y)) > 2) or (y.ndim >= 2 and len(y[0]) > 1):
+        return 'multiclass' + suffix  # [1, 2, 3] or [[1., 2., 3]] or [[1, 2]]
     else:
-        return sample_score.sum()
+        return 'binary'  # [1, 2] or [["a"], ["b"]]
 
 
-def accuracy(predict, ground_truth):
-    assert(np.shape(predict) == np.shape(ground_truth))
-    count = 0.0
-    for i in range(len(predict)):
-        if predict[i] == ground_truth[i]:
-            count = count + 1
-    return count/len(predict)
+def _check_targets(y_true, y_pred):
+    """Check that y_true and y_pred belong to the same classification task
+
+    This converts multiclass or binary types to a common shape, and raises a
+    ValueError for a mix of multilabel and multiclass targets, a mix of
+    multilabel formats, for the presence of continuous-valued or multioutput
+    targets, or for targets of different lengths.
+
+    Column vectors are squeezed to 1d, while multilabel formats are returned
+    as CSR sparse label indicators.
+
+    Parameters
+    ----------
+    y_true : array-like
+
+    y_pred : array-like
+
+    Returns
+    -------
+    type_true : one of {'multilabel-indicator', 'multiclass', 'binary'}
+        The type of the true target data, as output by
+        ``utils.multiclass.type_of_target``
+
+    y_true : array or indicator matrix
+
+    y_pred : array or indicator matrix
+    """
+    check_consistent_length(y_true, y_pred)
+    type_true = type_of_target(y_true)
+    type_pred = type_of_target(y_pred)
+
+    y_type = set([type_true, type_pred])
+    if y_type == set(["binary", "multiclass"]):
+        y_type = set(["multiclass"])
+
+    if len(y_type) > 1:
+        raise ValueError("Classification metrics can't handle a mix of {0} "
+                         "and {1} targets".format(type_true, type_pred))
+
+    # We can't have more than one value on y_type => The set is no more needed
+    y_type = y_type.pop()
+
+    # No metrics support "multiclass-multioutput" format
+    if (y_type not in ["binary", "multiclass", "multilabel-indicator"]):
+        raise ValueError("{0} is not supported".format(y_type))
+
+    if y_type in ["binary", "multiclass"]:
+        y_true = column_or_1d(y_true)
+        y_pred = column_or_1d(y_pred)
+        if y_type == "binary":
+            unique_values = np.union1d(y_true, y_pred)
+            if len(unique_values) > 2:
+                y_type = "multiclass"
+
+    if y_type.startswith('multilabel'):
+        y_true = csr_matrix(y_true)
+        y_pred = csr_matrix(y_pred)
+        y_type = 'multilabel-indicator'
+
+    return y_type, y_true, y_pred
 
 
-
-def accuracy_score(y_true, y_pred, normalize=True, sample_weight=None):
+def accuracy_score(y_true, y_pred, sample_weight=None):
     """Accuracy classification score.
 
     Parameters
@@ -43,37 +108,22 @@ def accuracy_score(y_true, y_pred, normalize=True, sample_weight=None):
     y_pred : 1d array-like, or label indicator array / sparse matrix
         Predicted labels, as returned by a classifier.
 
-    normalize : bool, optional (default=True)
-        If ``False``, return the number of correctly classified samples.
-        Otherwise, return the fraction of correctly classified samples.
-
     sample_weight : array-like of shape = [n_samples], optional
         Sample weights.
 
     Returns
     -------
     score : float
-        If ``normalize == True``, return the fraction of correctly
-        classified samples (float), else returns the number of correctly
-        classified samples (int).
-
-        The best performance is 1 with ``normalize == True`` and the number
-        of samples with ``normalize == False``.
-
-    See also
-
     """
 
-    # Compute accuracy for each possible representation
     # y_type, y_true, y_pred = _check_targets(y_true, y_pred)
     # check_consistent_length(y_true, y_pred, sample_weight)
     if y_type.startswith('multilabel'):
-        differing_labels = count_nonzero(y_true - y_pred, axis=1)
+        differing_labels = np.diff(csr_matrix(y_true - y_pred).indptr)
         score = differing_labels == 0
     else:
         score = y_true == y_pred
-
-    return _weighted_sum(score, sample_weight, normalize)
+    return np.average(score, weights=sample_weight)
 
 
 def get_tps_fps_thresholds(y_true, y_score, pos_label=None, sample_weight=None):
@@ -136,7 +186,7 @@ def roc_curve(y_true, y_score, pos_label=None, sample_weight=None):
     return fpr, tpr, thresholds
 
 
-def get_auc(x, y):
+def roc_auc_score(x, y):
     assert(np.shape(x) == np.shape(y))
     if x.shape[0] < 2:
         raise ValueError('At least 2 points are needed to compute'
@@ -157,8 +207,6 @@ def average_precision_score(y_true, y_score, average="macro", pos_label=1,
     return area
 
 
-
-
 def precision_recall_curve(y_true, y_score, pos_label=None,
                            sample_weight=None):
     fps, tps, thresholds = get_tps_fps_thresholds(y_true, y_score,
@@ -170,7 +218,6 @@ def precision_recall_curve(y_true, y_score, pos_label=None,
     last_ind = tps.searchsorted(tps[-1])
     sl = slice(last_ind, None, -1)
     return np.r_[precision[sl], 1], np.r_[recall[sl], 0], thresholds[sl]
-
 
 
 def hinge_loss(y_true, pred_decision, labels=None, sample_weight=None):
@@ -233,7 +280,6 @@ def hinge_loss(y_true, pred_decision, labels=None, sample_weight=None):
     return np.average(losses, weights=sample_weight)
 
 
-
 def hamming_loss(y_true, y_pred, labels=None, sample_weight=None):
     """Compute the average Hamming loss.
 
@@ -285,106 +331,6 @@ def hamming_loss(y_true, y_pred, labels=None, sample_weight=None):
     else:
         raise ValueError("{0} is not supported".format(y_type))
 
-
-def confusion_matrix(y_true, y_pred, labels=None, sample_weight=None):
-    """Compute confusion matrix to evaluate the accuracy of a classification
-
-    By definition a confusion matrix :math:`C` is such that :math:`C_{i, j}`
-    is equal to the number of observations known to be in group :math:`i` but
-    predicted to be in group :math:`j`.
-
-    Thus in binary classification, the count of true negatives is
-    :math:`C_{0,0}`, false negatives is :math:`C_{1,0}`, true positives is
-    :math:`C_{1,1}` and false positives is :math:`C_{0,1}`.
-
-    Parameters
-    ----------
-    y_true : array, shape = [n_samples]
-        Ground truth (correct) target values.
-
-    y_pred : array, shape = [n_samples]
-        Estimated targets as returned by a classifier.
-
-    labels : array, shape = [n_classes], optional
-        List of labels to index the matrix. This may be used to reorder
-        or select a subset of labels.
-        If none is given, those that appear at least once
-        in ``y_true`` or ``y_pred`` are used in sorted order.
-
-    sample_weight : array-like of shape = [n_samples], optional
-        Sample weights.
-
-    Returns
-    -------
-    C : array, shape = [n_classes, n_classes]
-        Confusion matrix
-
-    Examples
-    --------
-    >>> from sklearn.metrics import confusion_matrix
-    >>> y_true = [2, 0, 2, 2, 0, 1]
-    >>> y_pred = [0, 0, 2, 2, 0, 2]
-    >>> confusion_matrix(y_true, y_pred)
-    array([[2, 0, 0],
-           [0, 0, 1],
-           [1, 0, 2]])
-
-    >>> y_true = ["cat", "ant", "cat", "cat", "ant", "bird"]
-    >>> y_pred = ["ant", "ant", "cat", "cat", "ant", "cat"]
-    >>> confusion_matrix(y_true, y_pred, labels=["ant", "bird", "cat"])
-    array([[2, 0, 0],
-           [0, 0, 1],
-           [1, 0, 2]])
-
-    In the binary case, we can extract true positives, etc as follows:
-
-    >>> tn, fp, fn, tp = confusion_matrix([0, 1, 0, 1], [1, 1, 1, 0]).ravel()
-    >>> (tn, fp, fn, tp)
-    (0, 2, 1, 1)
-
-    """
-    y_type, y_true, y_pred = _check_targets(y_true, y_pred)
-    if y_type not in ("binary", "multiclass"):
-        raise ValueError("%s is not supported" % y_type)
-
-    if labels is None:
-        labels = unique_labels(y_true, y_pred)
-    else:
-        labels = np.asarray(labels)
-        if np.all([l not in y_true for l in labels]):
-            raise ValueError("At least one label specified must be in y_true")
-
-    if sample_weight is None:
-        sample_weight = np.ones(y_true.shape[0], dtype=np.int64)
-    else:
-        sample_weight = np.asarray(sample_weight)
-
-    check_consistent_length(y_true, y_pred, sample_weight)
-
-    n_labels = labels.size
-    label_to_ind = dict((y, x) for x, y in enumerate(labels))
-    # convert yt, yp into index
-    y_pred = np.array([label_to_ind.get(x, n_labels + 1) for x in y_pred])
-    y_true = np.array([label_to_ind.get(x, n_labels + 1) for x in y_true])
-
-    # intersect y_pred, y_true with labels, eliminate items not in labels
-    ind = np.logical_and(y_pred < n_labels, y_true < n_labels)
-    y_pred = y_pred[ind]
-    y_true = y_true[ind]
-    # also eliminate weights of eliminated items
-    sample_weight = sample_weight[ind]
-
-    # Choose the accumulator dtype to always have high precision
-    if sample_weight.dtype.kind in {'i', 'u', 'b'}:
-        dtype = np.int64
-    else:
-        dtype = np.float64
-
-    CM = coo_matrix((sample_weight, (y_true, y_pred)),
-                    shape=(n_labels, n_labels), dtype=dtype,
-                    ).toarray()
-
-    return CM
 
 if __name__ == '__main__':
     # y = np.array([1, 1, 2, 2])
