@@ -340,6 +340,20 @@ def _is_arraylike(x):
             hasattr(x, '__array__'))
 
 
+def nlargestarg(a, n):
+    """return n largest values' indexes of the given array a"""
+    argret = np.argsort(a)
+    # ascend
+    return argret[argret.size - n:]
+
+
+def nsmallestarg(a, n):
+    """return n smallest values' indexes of the given array a"""
+    argret = np.argsort(a)
+    # ascend
+    return argret[0:n]
+
+
 if __name__ == '__main__':
     a = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
     print(get_gaussian_kernel_mat(a))

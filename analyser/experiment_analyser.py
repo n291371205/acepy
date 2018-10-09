@@ -232,12 +232,11 @@ class ExperimentAnalyser:
 
     # some commonly used tool function for experiment analysing.
     @classmethod
-    def paired_ttest(cls, a, b, alpha=0.05, axis=0, tail="both"):
-        """Performs a paired t-test of the hypothesis that two
+    def paired_ttest(cls, a, b, alpha=0.05):
+        """Performs a two-tailed paired t-test of the hypothesis that two
         matched samples, in the arrays a and b, come from distributions with
         equal means. The difference a-b is assumed to come from a normal
         distribution with unknown variance.  a and b must have the same length.
-        a and b can also be matrices or N-D arrays of the same size.
 
         Parameters
         ----------
@@ -252,15 +251,6 @@ class ExperimentAnalyser:
             significance level as (100*alpha)%. Default is
             0.05 for 5% significance.
 
-        axis: int, optional (default=0)
-            Axis along which to compute test. Only available when the dimensions of
-            a and b is larger than 1.
-
-        tail: str, optional (default="both")
-            'both'  -- two-tailed test
-            'right' -- right-tailed test
-            'left'  -- left-tailed test
-
         Returns
         -------
         H: int
@@ -271,31 +261,35 @@ class ExperimentAnalyser:
             H=1     -- indicates that the null hypothesis can be rejected at the 5% level
                     (a and b have significance difference).
 
+        Examples
+        -------
+        >>> from analyser.experiment_analyser import ExperimentAnalyser
+        >>> a = [1.2, 2, 3]
+        >>> b = [1.6, 2.5, 1.1]
+        >>> print(ExperimentAnalyser.paired_ttest(a, b))
+        1
         """
+        rava = a
+        ravb = b
         # check a,b
         sh = np.shape(a)
-        one_dim = False
         if len(sh) == 1:
-            one_dim = True
+            pass
         elif sh[0] == 1 or sh[1] == 1:
-            one_dim = True
-            a = np.ravel(a)
-            b = np.ravel(b)
-
-        if one_dim:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                statistic, pvalue = scipy.stats.ttest_rel(a, b)
+            rava = np.ravel(a)
+            ravb = np.ravel(b)
         else:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                statistic, pvalue = scipy.stats.ttest_rel(a, b, axis=axis)
+            raise Exception("a or b must be a 1-D array. but received: %s" % str(sh))
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            statistic, pvalue = scipy.stats.ttest_rel(rava, ravb)
         H = int(pvalue <= alpha)
         return H
 
 
 if __name__ == "__main__":
-    a = [1,2,3]
-    b = [4,5,6]
-    print(ExperimentAnalyser.paired_ttest(a,b))
+    a = [1.2, 2, 3]
+    b = [1.6, 2.5, 1.1]
+    print(ExperimentAnalyser.paired_ttest(a, b))
     print(ExperimentAnalyser.paired_ttest(a, a))

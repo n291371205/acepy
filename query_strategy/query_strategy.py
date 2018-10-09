@@ -45,7 +45,7 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
             --'margin' x* = argmax P(y_hat1|x) - P(y_hat2|x), where y_hat1 and y_hat2 are the first and second
                 most probable class labels under the model, respectively.
             --'entropy' x* = argmax -sum(P(yi|x)logP(yi|x))
-            --'distance_to_margin' Only available in binary classification, x* = argmin |f(x)|
+            --'distance_to_boundary' Only available in binary classification, x* = argmin |f(x)|
 
         scenario: string, optional (default='pool')
             should be one of ['pool', 'stream', 'membership']
@@ -53,8 +53,8 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
             note that, the 'least_confident', 'margin', 'entropy' needs the probability output of the model.
             For the 'distance_to_margin',should provide the value of f(x)
         """
-        if measure not in ['least_confident', 'margin', 'entropy', 'distance_to_margin']:
-            raise ValueError("measure must in ['least_confident', 'margin', 'entropy', 'distance_to_margin']")
+        if measure not in ['least_confident', 'margin', 'entropy', 'distance_to_boundary']:
+            raise ValueError("measure must in ['least_confident', 'margin', 'entropy', 'distance_to_boundary']")
         self.measure = measure
         if scenario not in ['pool', 'stream', 'membership']:
             raise ValueError("scenario must in ['pool', 'stream', 'membership']")
@@ -100,10 +100,10 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
         unlabel_x = self.X[unlabel_index, :]
         ##################################
 
-        if self.measure == 'distance_to_margin':
-            if not hasattr(model, 'predict_value'):
-                raise TypeError('model object must implement predict_value methods in distance_to_margin measure.')
-            pv = model.predict_value(unlabel_x)
+        if self.measure == 'distance_to_boundary':
+            if not hasattr(model, 'decision_function'):
+                raise TypeError('model object must implement decision_function methods in distance_to_boundary measure.')
+            pv = model.decision_function(unlabel_x)
             spv = np.shape(pv)
             assert (len(spv) in [1, 2])
             if len(spv) == 2:
@@ -111,8 +111,7 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
                     raise Exception('1d or 2d with 1 column array is expected, but received: \n%s' % str(pv))
                 else:
                     pv = np.array(pv).flatten()
-            argpv = np.argsort(pv)
-            return unlabel_index[argpv[0:batch_size]]
+            return unlabel_index[utils.tools.nsmallestarg(pv, batch_size)]
 
         pv, _ = self.__get_proba_pred(unlabel_x, model)
         return self.select_by_prediction_mat(unlabel_index=unlabel_index, predict=pv,
@@ -147,44 +146,37 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
         if len(unlabel_index) <= batch_size:
             return np.array([i for i in unlabel_index])
 
-        pv = predict
-        spv = np.shape(pv)
+        pv = predict    #predict value
+        spv = np.shape(pv)  #shape of predict value
         # validity check here
 
-        if self.measure == 'distance_to_margin':
+        if self.measure == 'distance_to_boundary':
             assert (len(spv) in [1, 2])
             if len(spv) == 2:
                 if spv[1] != 1:
                     raise Exception('1d or 2d with 1 column array is expected, but received: \n%s' % str(pv))
                 else:
                     pv = np.array(pv).flatten()
-            argpv = np.argsort(pv)
-            return unlabel_index[argpv[0:batch_size]]
+            return unlabel_index[utils.tools.nsmallestarg(np.abs(pv), batch_size)]
 
         if self.measure == 'entropy':
             # calc entropy
-            pv[pv <= 0] = 0.000001
+            pv[pv <= 0] = 1e-06
             entro = [-np.sum(vec * np.log(vec)) for vec in pv]
             assert (len(np.shape(entro)) == 1)
-            argentro = np.argsort(entro)
-            # descend
-            return unlabel_index[argentro[argentro.size - batch_size:]]
+            return unlabel_index[utils.tools.nlargestarg(entro, batch_size)]
 
         if self.measure == 'margin':
             # calc margin
             pat = np.partition(pv, (spv[1] - 2, spv[1] - 1), axis=1)
             pat = pat[:, spv[1] - 2] - pat[:, spv[1] - 1]
-            argret = np.argsort(pat)
-            # descend
-            return unlabel_index[argret[argret.size - batch_size:]]
+            return unlabel_index[utils.tools.nlargestarg(pat, batch_size)]
 
         if self.measure == 'least_confident':
             # calc least_confident
             pat = np.partition(pv, spv[1] - 1, axis=1)
             pat = 1 - pat[:, spv[1] - 1]
-            argret = np.argsort(pat)
-            # descend
-            return unlabel_index[argret[argret.size - batch_size:]]
+            return unlabel_index[utils.tools.nlargestarg(pat, batch_size)]
 
     def __get_proba_pred(self, unlabel_x, model):
         """
@@ -380,9 +372,7 @@ class QueryInstanceQBC(utils.base.BaseQueryStrategy):
             score = self.calc_vote_entropy([estimator.predict(unlabel_x) for estimator in est_arr])
         else:
             score = self.calc_avg_KL_divergence([estimator.predict_proba(unlabel_x) for estimator in est_arr])
-        argret = np.argsort(score)
-        # descend
-        return unlabel_index[argret[argret.size - batch_size:]]
+        return unlabel_index[utils.tools.nlargestarg(score, batch_size)]
 
     def _check_committee_results(self, *arys):
         """check the validity of given committee predictions.
