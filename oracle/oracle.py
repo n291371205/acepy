@@ -9,6 +9,8 @@ import collections
 
 import numpy as np
 import os
+import random
+import prettytable as pt
 from sklearn.utils.validation import check_array
 
 import utils.base
@@ -359,17 +361,18 @@ class OracleQueryMultiLabel(Oracle):
             and is one-to-one correspondence of y, default is 1.
         """
         if len(label) != self._label_shape[1]:
-            raise ValueError("Different dimension of labels found when adding entries: %s is expected but received: %s" %
-                            (str(self._label_shape[1]), str(len(label))))
+            raise ValueError(
+                "Different dimension of labels found when adding entries: %s is expected but received: %s" %
+                (str(self._label_shape[1]), str(len(label))))
         if self._instance_flag:
             if example is None:
                 raise Exception("This oracle has the instance information,"
-                                 "must provide example parameter when adding entry")
+                                "must provide example parameter when adding entry")
             self._exa2ind[example] = index
         if self._cost_flag:
             if cost is None:
                 raise Exception("This oracle has the cost information,"
-                                 "must provide cost parameter when adding entry")
+                                "must provide cost parameter when adding entry")
             if len(cost) != self._label_shape[1]:
                 raise ValueError(
                     "Different dimension of cost found when adding entries: %s is expected but received: %s" %
@@ -505,35 +508,112 @@ class OracleQueryMultiLabel(Oracle):
 
 
 class Oracles:
-    """Class to support noisy oracles setting.
+    """Class to support crowdsourcing setting.
 
     This class is a container that support multiple oracles work together.
     It will store the cost in all and cost for each oracle for analysing.
-    also can return row labels for user-defined strategy.
     """
 
     def __init__(self):
+        self._oracle_dict = dict()
         self.cost_inall = 0
-        self.cost_arr = []
+        self.query_history = []
 
-    def add_oracle(self, oracle):
-        pass
+    def add_oracle(self, oracle_name, oracle_object):
+        """Adding an oracle. The oracle name should be unique to identify
+        different oracles.
 
-    def query_from(self, index_for_querying, index_of_oracle):
-        pass
+        Parameters
+        ----------
+        oracle_name: str
+            id of the oracle.
 
-    def get_oracle(self, index_of_oracle):
-        pass
+        oracle_object: utils.base.BaseOracle
+            oracle object.
+        """
+        assert (isinstance(oracle_object, utils.base.BaseVirtualOracle))
+        self._oracle_dict[oracle_name] = oracle_object
+        return self
 
-    def get_summary(self):
-        pass
+    def query_from(self, index_for_querying, oracle_name=None):
+        """query index_for_querying from oracle_name.
+        If oracle_name is not specified, it will query one of the oracles randomly.
+
+        Parameters
+        ----------
+        index_for_querying: object
+            index for querying.
+
+        oracle_name: str, optional (default=None)
+            query from which oracle. If not specified, it will query one of the
+            oracles randomly.
+
+        Returns
+        -------
+        sup_info: list
+            supervised information of queried index.
+
+        costs: list
+            corresponding costs produced by query.
+        """
+        if oracle_name is None:
+            oracle_name = random.sample(self._oracle_dict.keys(), 1)[0]
+        result = self._oracle_dict[oracle_name].query_by_index(index_for_querying)
+
+        self._update_query_history(oracle_name, result, index_for_querying)
+        self.cost_inall += np.sum(result[1])
+        return result
+
+    def get_oracle(self, oracle_name):
+        return self._oracle_dict[oracle_name]
+
+    def _update_query_history(self, oracle_name, query_result, index_for_querying):
+        """record the query history"""
+        self.query_history.append((oracle_name, query_result, index_for_querying))
 
     def __repr__(self):
-        """Print summaries of each oracle.
+        """return summaries of each oracle.
 
         This function returns the content of this object.
         """
-        pass
+        # collect information for displaying
+        # key: name
+        # value: (query_times, cost_incured)
+        display_dict = dict()
+        for key in self._oracle_dict.keys():
+            display_dict[key] = [0, 0]
+        for query in self.query_history:
+            # query is a triplet: (oracle_name, result, index_for_querying)
+            # types of elements are: (str, [[labels], [cost]], [indexes])
+            display_dict[query[0]][0] += 1
+            display_dict[query[0]][1] += np.sum([np.sum(query[1][1][i]) for i in range(len(query[1][1]))])
+
+        tb = pt.PrettyTable()
+        tb.field_names = ['oracles', 'number_of_labeling', 'cost']
+        for key in display_dict.keys():
+            tb.add_row([key, display_dict[key][0], display_dict[key][1]])
+        return str(tb)
+
+    def print_full_history(self):
+        """return full version of query history"""
+        oracle_name_list = list(self._oracle_dict.keys())
+        oracles_num = len(oracle_name_list)
+        oracle_labeling_count = [0] * oracles_num
+
+        tb = pt.PrettyTable()
+        # tb.set_style(pt.MSWORD_FRIENDLY)
+
+        tb.add_column('oracles', oracle_name_list)
+        for query_ind in range(len(self.query_history)):
+            query_result = self.query_history[query_ind]
+            name_ind = oracle_name_list.index(query_result[0])
+            oracle_labeling_count[name_ind] += 1
+            tb.add_column(str(query_ind), ['\\' if i != name_ind else "query_index:%s\nresponse:%s\ncost:%s" % (
+            str(query_result[2]), str(query_result[1][0]), str(query_result[1][1])) for i in range(oracles_num)])
+
+        tb.add_column('in all', oracle_labeling_count)
+        print(tb)
+        return str(tb)
 
 
 if __name__ == '__main__':
@@ -544,12 +624,12 @@ if __name__ == '__main__':
     a.add_knowledge(labels=[4, 5], indexes=[4, 5])
     print(a.query_by_index([5]))
 
-    a = Oracle([[1, 2, 3], [4, 5, 6]])
-    print(a.query_by_index(1))
-    a.add_knowledge(labels=[0, 2, 1], indexes=2)
-    print(a.query_by_index([2]))
-    a.add_knowledge(labels=[[1, 2, 3], [4, 5, 6]], indexes=[3, 4])
-    print(a.query_by_index([4]))
+    # a = Oracle([[1, 2, 3], [4, 5, 6]])
+    # print(a.query_by_index(1))
+    # a.add_knowledge(labels=[0, 2, 1], indexes=2)
+    # print(a.query_by_index([2]))
+    # a.add_knowledge(labels=[[1, 2, 3], [4, 5, 6]], indexes=[3, 4])
+    # print(a.query_by_index([4]))
 
     b = OracleQueryMultiLabel([[1, 2, 3], [4, 5, 6]])
     print(b.query_by_index((0,)))
@@ -559,3 +639,12 @@ if __name__ == '__main__':
     b.add_knowledge([7, 8, 9], 2)
     print(b.query_by_index((2, 0)))
     print(b.query_by_index([(2, 0), (1,)]))
+
+    multi_oracles = Oracles()
+    multi_oracles.add_oracle('oracle1', a)
+    multi_oracles.add_oracle('oracle2', b)
+    multi_oracles.query_from([5], 'oracle1')
+    multi_oracles.query_from([4, 5], 'oracle1')
+    multi_oracles.query_from([(2, 0), (1,)], 'oracle2')
+    print(multi_oracles)
+    multi_oracles.print_full_history()

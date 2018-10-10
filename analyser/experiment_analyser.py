@@ -5,6 +5,7 @@ Class to analyse active learning experiments.
 # License: BSD 3 clause
 
 import copy
+import os
 import warnings
 import matplotlib.pyplot as plt
 import prettytable as pt
@@ -144,7 +145,18 @@ class ExperimentAnalyser:
                     i, str(np.argwhere(np.isinf(self.__result_data[i]) == True))))
         return True
 
-    def simple_plot(self, xlabel='queries', ylabel='performance'):
+    def simple_plot(self, xlabel='queries', ylabel='performance', saving_path='.'):
+        """plotting the performance curves.
+
+        Parameters
+        ----------
+        xlabel
+
+        ylabel
+
+        saving_path: str, optional (default='.')
+            path to save the figure. If None is given, the saving will be disabled.
+        """
         self.check_plotting()
         for i in self.methods():
             points = np.mean(self.__result_data[i], axis=0)
@@ -155,6 +167,12 @@ class ExperimentAnalyser:
         plt.legend()
         plt.xlabel("Number of queries")
         plt.ylabel("Performance")
+        if saving_path is not None:
+            saving_path = os.path.abspath(saving_path)
+            if os.path.isdir(saving_path):
+                plt.savefig(os.path.join(saving_path, 'acepy_plotting.jpg'))
+            else:
+                plt.savefig(saving_path)
         plt.show()
 
     def check_methods_continuity(self):
@@ -229,6 +247,11 @@ class ExperimentAnalyser:
     def __iter__(self):
         return iter(self.__result_raw)
 
+    @classmethod
+    def load_result(self, path):
+        """load result from file"""
+        pass
+
     # some commonly used tool function for experiment analysing.
     @classmethod
     def paired_ttest(cls, a, b, alpha=0.05):
@@ -279,12 +302,23 @@ class ExperimentAnalyser:
             ravb = np.ravel(b)
         else:
             raise Exception("a or b must be a 1-D array. but received: %s" % str(sh))
+        assert(len(a)==len(b))
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             statistic, pvalue = scipy.stats.ttest_rel(rava, ravb)
         H = int(pvalue <= alpha)
         return H
+
+
+class BaseAnalyser:
+    """class to plotting, analysing the experiment results only depends on the
+    data array. It may also deal with other types of data file, such as:
+    .mat
+    .txt
+    .csv
+    """
+    pass
 
 
 if __name__ == "__main__":

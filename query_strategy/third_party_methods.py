@@ -91,8 +91,9 @@ class QueryInstanceQUIRE(utils.base.BaseQueryStrategy):
 
     References
     ----------
-    .. [1] S.-J. Huang, R. Jin, and Z.-H. Zhou. Active learning by querying
-           informative and representative examples.
+    [1] Huang S J, Jin R, Zhou Z H. Active learning by querying informative and
+        representative examples[C]// International Conference on Neural Information
+        Processing Systems. Curran Associates Inc. 2010:892-900.
     """
 
     def __init__(self, X, y, **kwargs):
@@ -125,7 +126,7 @@ class QueryInstanceQUIRE(utils.base.BaseQueryStrategy):
         self.L = np.linalg.inv(self.K + self.lmbda * np.eye(len(X)))
 
     def select(self, label_index, unlabel_index, batch_size=1):
-        """
+        """select unlabeled instance by QUIRE.
 
         Parameters
         ----------
@@ -137,7 +138,8 @@ class QueryInstanceQUIRE(utils.base.BaseQueryStrategy):
 
         Returns
         -------
-
+        selected_index: list
+            the index of instance. It is an element in unlabel_index.
         """
         L = self.L
         Lindex = list(label_index)
@@ -182,21 +184,48 @@ class QueryInstanceQUIRE(utils.base.BaseQueryStrategy):
             if eva < min_eva:
                 query_index = each_index
                 min_eva = eva
-        return query_index
+        return [query_index]
 
 
 class QueryInstanceGraphDensity(utils.base.BaseQueryStrategy):
     """Diversity promoting sampling method that uses graph density to determine
     most representative points.
+
+    Parameters
+    ----------
+    X: 2D array
+        data matrix
+
+    y: array-like
+        label matrix
+
+    train_idx: array-like
+        the index of training data
+
+    metric: str, optional (default='manhattan')
+        the distance metric.
+        valid metric = ['euclidean', 'l2', 'l1', 'manhattan', 'cityblock',
+                      'braycurtis', 'canberra', 'chebyshev', 'correlation',
+                      'cosine', 'dice', 'hamming', 'jaccard', 'kulsinski',
+                      'mahalanobis', 'matching', 'minkowski', 'rogerstanimoto',
+                      'russellrao', 'seuclidean', 'sokalmichener',
+                      'sokalsneath', 'sqeuclidean', 'yule', "wminkowski"]
+
+    References
+    ----------
+    [1] RALF: A reinforced active learning formulation for object class recognition
     """
 
-    def __init__(self, X, y):
-        self.name = 'graph_density'
+    def __init__(self, X, y, train_idx, metric='manhattan'):
+        self.metric = metric
         super(QueryInstanceGraphDensity, self).__init__(X, y)
         # Set gamma for gaussian kernel to be equal to 1/n_features
         self.gamma = 1. / self.X.shape[1]
-        self.flat_X = X
-        self.compute_graph_density()
+        self.flat_X = X[train_idx, :]
+        self.train_idx = train_idx
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self.compute_graph_density()
 
     def compute_graph_density(self, n_neighbor=10):
         # kneighbors graph is constructed using k=10
@@ -211,7 +240,7 @@ class QueryInstanceGraphDensity(utils.base.BaseQueryStrategy):
         for entry in inds:
             i = entry[0]
             j = entry[1]
-            distance = pairwise_distances(self.flat_X[[i]], self.flat_X[[j]], metric='manhattan')
+            distance = pairwise_distances(self.flat_X[[i]], self.flat_X[[j]], metric=self.metric)
             distance = distance[0, 0]
             weight = np.exp(-distance * self.gamma)
             connect[i, j] = weight
@@ -220,8 +249,8 @@ class QueryInstanceGraphDensity(utils.base.BaseQueryStrategy):
         # Define graph density for an observation to be sum of weights for all
         # edges to the node representing the datapoint.  Normalize sum weights
         # by total number of neighbors.
-        self.graph_density = np.zeros(self.X.shape[0])
-        for i in np.arange(self.X.shape[0]):
+        self.graph_density = np.zeros(self.flat_X.shape[0])
+        for i in np.arange(self.flat_X.shape[0]):
             self.graph_density[i] = connect[i, :].sum() / (connect[i, :] > 0).sum()
         self.starting_density = copy.deepcopy(self.graph_density)
 
@@ -229,17 +258,22 @@ class QueryInstanceGraphDensity(utils.base.BaseQueryStrategy):
         # If a neighbor has already been sampled, reduce the graph density
         # for its direct neighbors to promote diversity.
         batch = set()
-        self.graph_density[label_index] = min(self.graph_density) - 1
+
+        # build map from value to index
+        try:
+            label_index_in_train = [self.train_idx.index(i) for i in label_index]
+        except:
+            label_index_in_train = [np.where(self.train_idx == i)[0][0] for i in label_index]
+        # end
+
+        self.graph_density[label_index_in_train] = min(self.graph_density) - 1
         while len(batch) < batch_size:
             selected = np.argmax(self.graph_density)
-
-            if selected not in unlabel_index:
-                continue
-
             neighbors = (self.connect[selected, :] > 0).nonzero()[1]
             self.graph_density[neighbors] = self.graph_density[neighbors] - self.graph_density[selected]
-            batch.add(selected)
-            self.graph_density[label_index] = min(self.graph_density) - 1
+            assert (self.train_idx[selected] in unlabel_index)
+            batch.add(self.train_idx[selected])
+            self.graph_density[label_index_in_train] = min(self.graph_density) - 1
             self.graph_density[list(batch)] = min(self.graph_density) - 1
         return list(batch)
 
@@ -248,6 +282,61 @@ class QueryInstanceGraphDensity(utils.base.BaseQueryStrategy):
         output['connectivity'] = self.connect
         output['graph_density'] = self.starting_density
         return output
+
+# 缺少QP工具包
+class QueryInstanceBMDR(utils.base.BaseQueryStrategy):
+    """Select a batch of representative and informative instances by optimizing
+    the ERM bound of active learning.
+
+    Parameters
+    ----------
+    X: 2D array
+        data matrix
+
+    y: array-like
+        label matrix
+
+    kernel : {'linear', 'poly', 'rbf', callable}, optional (default='rbf')
+        Specifies the kernel type to be used in the algorithm.
+        It must be one of 'linear', 'poly', 'rbf', or a callable.
+        If a callable is given it is used to pre-compute the kernel matrix
+        from data matrices; that matrix should be an array of shape
+        ``(n_samples, n_samples)``.
+
+    degree : int, optional (default=3)
+        Degree of the polynomial kernel function ('poly').
+        Ignored by all other kernels.
+
+    gamma : float, optional (default=1.)
+        Kernel coefficient for 'rbf', 'poly'.
+
+    coef0 : float, optional (default=1.)
+        Independent term in kernel function.
+        It is only significant in 'poly'.
+    """
+    def __init__(self,X, y, kernel='linear', **kwargs):
+        super(QueryInstanceBMDR, self).__init__(X, y)
+        self.kernel = kwargs.pop('kernel', 'rbf')
+        if self.kernel == 'rbf':
+            self.K = rbf_kernel(X=X, Y=X, gamma=kwargs.pop('gamma', 1.))
+        elif self.kernel == 'poly':
+            self.K = polynomial_kernel(X=X,
+                                       Y=X,
+                                       coef0=kwargs.pop('coef0', 1),
+                                       degree=kwargs.pop('degree', 3),
+                                       gamma=kwargs.pop('gamma', 1.))
+        elif self.kernel == 'linear':
+            self.K = linear_kernel(X=X, Y=X)
+        elif hasattr(self.kernel, '__call__'):
+            self.K = self.kernel(X=np.array(X), Y=np.array(X))
+        else:
+            raise NotImplementedError
+
+        if not isinstance(self.K, np.ndarray):
+            raise TypeError('K should be an ndarray')
+        if self.K.shape != (len(X), len(X)):
+            raise ValueError(
+                'kernel should have size (%d, %d)' % (len(X), len(X)))
 
 
 if __name__ == "__main__":
@@ -264,6 +353,6 @@ if __name__ == "__main__":
     print(select_index)
 
     # test graph density
-    qs = QueryInstanceGraphDensity(X, y)
+    qs = QueryInstanceGraphDensity(X, y, Train_idx[0])
     select_index = qs.select(label_index=L_pool[0], unlabel_index=U_pool[0])
     print(select_index)

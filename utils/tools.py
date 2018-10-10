@@ -10,6 +10,8 @@ from sklearn.utils.validation import check_array
 import numpy as np
 import collections
 from sklearn.utils.validation import check_X_y
+from sklearn.metrics.pairwise import linear_kernel, polynomial_kernel, \
+    rbf_kernel
 
 
 def check_index_multilabel(index):
@@ -353,6 +355,50 @@ def nsmallestarg(a, n):
     # ascend
     return argret[0:n]
 
+
+def calc_kernel_matrix(X, kernel, **kwargs):
+    """calculate kernel matrix between X and X.
+
+    Parameters
+    ----------
+    kernel : {'linear', 'poly', 'rbf', callable}, optional (default='rbf')
+        Specifies the kernel type to be used in the algorithm.
+        It must be one of 'linear', 'poly', 'rbf', or a callable.
+        If a callable is given it is used to pre-compute the kernel matrix
+        from data matrices; that matrix should be an array of shape
+        ``(n_samples, n_samples)``.
+
+    degree : int, optional (default=3)
+        Degree of the polynomial kernel function ('poly').
+        Ignored by all other kernels.
+
+    gamma : float, optional (default=1.)
+        Kernel coefficient for 'rbf', 'poly'.
+
+    coef0 : float, optional (default=1.)
+        Independent term in kernel function.
+        It is only significant in 'poly'.
+
+    Returns
+    -------
+
+    """
+    if kernel == 'rbf':
+        K = rbf_kernel(X=X, Y=X, gamma=kwargs.pop('gamma', 1.))
+    elif kernel == 'poly':
+        K = polynomial_kernel(X=X,
+                              Y=X,
+                              coef0=kwargs.pop('coef0', 1),
+                              degree=kwargs.pop('degree', 3),
+                              gamma=kwargs.pop('gamma', 1.))
+    elif kernel == 'linear':
+        K = linear_kernel(X=X, Y=X)
+    elif hasattr(kernel, '__call__'):
+        K = kernel(X=np.array(X), Y=np.array(X))
+    else:
+        raise NotImplementedError
+
+    return K
 
 
 if __name__ == '__main__':

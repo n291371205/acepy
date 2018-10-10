@@ -65,6 +65,7 @@ class ElementKnowledgeDB(BaseDB):
         self.cost_inall = 0
         self.cost_arr = []
         self.num_of_queries = 0
+        self.query_history = []
 
     def __len__(self):
         return self._index_len
@@ -90,7 +91,7 @@ class ElementKnowledgeDB(BaseDB):
         if self._instance_flag:
             if example is None:
                 raise Exception("This oracle has the instance information,"
-                                 "must provide example parameter when adding entry")
+                                "must provide example parameter when adding entry")
             self._exa2ind[example] = select_index
             self._ind2exa[select_index] = example
         self._ind2label[select_index] = label
@@ -166,6 +167,8 @@ class ElementKnowledgeDB(BaseDB):
                     self.add(labels[i], indexes[i], example=examples[i] if examples is not None else None,
                              cost=cost[i] if cost is not None else None)
         self.num_of_queries += 1
+        self._update_query_history(labels, indexes, cost, examples)
+        return self
 
     def retrieve_by_indexes(self, indexes):
         """retrieve by indexes
@@ -249,6 +252,11 @@ class ElementKnowledgeDB(BaseDB):
         self.cost_inall = 0
         self.cost_arr = []
         self.num_of_queries = 0
+        self.query_history.clear()
+
+    def _update_query_history(self, labels, indexes, cost, examples):
+        """record the query history"""
+        self.query_history.append((labels, indexes, cost, examples))
 
 
 # this class can only deal with the query-all-labels setting
@@ -304,6 +312,7 @@ class MatrixKnowledgeDB(BaseDB):
         self.cost_inall = 0
         self.cost_arr = []
         self.num_of_queries = 0
+        self.query_history = []
 
     def __len__(self):
         return self._index_len
@@ -374,6 +383,7 @@ class MatrixKnowledgeDB(BaseDB):
                 self.add(labels[i], indexes[i], cost=cost[i],
                          example=examples[i] if examples is not None else None)
         self.num_of_queries += 1
+        self._update_query_history(labels, indexes, cost, examples)
         return self
 
     def discard(self, index=None, example=None):
@@ -484,6 +494,11 @@ class MatrixKnowledgeDB(BaseDB):
         self._X = None
         self._y = None
         self._indexes = None
+        self.query_history.clear()
+
+    def _update_query_history(self, labels, indexes, cost, examples):
+        """record the query history"""
+        self.query_history.append((labels, indexes, cost, examples))
 
 # class MultiLabelKnowledgeDB(MatrixKnowledgeDB):
 #     """Using a sparse matrix to save the data
