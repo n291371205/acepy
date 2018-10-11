@@ -105,6 +105,8 @@ class StateIO:
             self.saving_path = tp_path
         self.__state_list = []
         self._first_print = True
+        self.cost_inall = 0
+        self._numqdata = 0
 
     @classmethod
     def load(cls, path):
@@ -177,6 +179,7 @@ class StateIO:
         #         warnings.warn('Checking validity fails, there are instances already queried '
         #                       'in previous iteration in State:%d, index:%s.' % (err_st, str(err_ind)),
         #                       category=ValidityWarning)
+        self.__update_info()
 
         if self.__verbose and len(self) % self.__print_interval == 0:
             if self._first_print:
@@ -325,20 +328,40 @@ class StateIO:
     def __iter__(self):
         return iter(self.__state_list)
 
-    def __repr__(self):
+    def refresh_info(self):
+        """re-calculate current active learning progress"""
         numqdata = 0
         cost = 0.0
         for state in self.__state_list:
             numqdata += len(state.get_value('select_index'))
             if 'cost' in state.keys():
                 cost += np.sum(state.get_value('cost'))
+        self.cost_inall = cost
+        self._numqdata = numqdata
+        return numqdata, cost
+
+    def __update_info(self):
+        """Update current active learning progress"""
+        state = self.__state_list[len(self)-1]
+        if 'cost' in state.keys():
+            self.cost_inall += np.sum(state.get_value('cost'))
+        self._numqdata += len(state.get_value('select_index'))
+
+    @property
+    def queried_percentage(self):
+        """return the queried percentage of unlabeled data"""
+        return 100 * self._numqdata / len(self.init_U)
+
+    def __repr__(self):
+        numqdata = self._numqdata
+        cost = self.cost_inall
         tb = pt.PrettyTable()
         tb.set_style(pt.MSWORD_FRIENDLY)
         tb.add_column('round', [self.round])
         tb.add_column('initially labeled data', [
             " %d (%.2f%% of all)" % (len(self.init_L), 100 * len(self.init_L) / (len(self.init_L) + len(self.init_U)))])
         tb.add_column('number of queries', [len(self.__state_list)])
-        tb.add_column('queried data', ["%d (%.2f%% of unlabeled data)" % (numqdata, 100 * numqdata / len(self.init_U))])
+        tb.add_column('queried data', ["%d (%.2f%% of unlabeled data)" % (numqdata, self.queried_percentage)])
         tb.add_column('cost', [cost])
         tb.add_column('saving path', [self.saving_path])
         return str(tb)

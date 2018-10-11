@@ -237,7 +237,10 @@ class aceThreading:
         return pickle_seq
 
     def __setstate__(self, state):
-        self.examples, self.labels, self.train_idx, self.test_idx, self.label_index, self.unlabel_index, self.refresh_interval, self.saving_path, self._round_num, self.max_thread, self._target_func, self._global_parameters, self.alive_thread, self.saver = state
+        self.examples, self.labels, self.train_idx, self.test_idx, \
+            self.label_index, self.unlabel_index, self.refresh_interval, \
+            self.saving_path, self._round_num, self.max_thread, \
+            self._target_func, self._global_parameters, self.alive_thread, self.saver = state
 
     def save(self):
         if os.path.isdir(self.saving_path):
@@ -261,9 +264,9 @@ class aceThreading:
         # recover the workspace
         # init self
         recover_thread = cls(breakpoint.examples, breakpoint.labels, breakpoint.train_idx,
-                                        breakpoint.test_idx, breakpoint.unlabel_index, breakpoint.label_index,
-                                        breakpoint._target_func, breakpoint.max_thread,
-                                        breakpoint.refresh_interval, breakpoint.saving_path)
+                             breakpoint.test_idx, breakpoint.unlabel_index, breakpoint.label_index,
+                             breakpoint._target_func, breakpoint.max_thread,
+                             breakpoint.refresh_interval, breakpoint.saving_path)
         # loading tmp files
         state_path = os.path.join(breakpoint.saving_path, 'AL_result')
         recover_arr = [True] * breakpoint._round_num

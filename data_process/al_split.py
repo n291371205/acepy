@@ -288,21 +288,38 @@ def split_load(path):
     Parameters
     ----------
     path: str
-        Path to a specific file, not a dir.
+        Path to a dir which contains train_idx.txt, test_idx.txt, label_idx.txt, unlabel_idx.txt.
 
     Returns
     -------
-    setting: experiment_saver.al_experiment.ExperimentSetting
-        Object of ExperimentSetting.
+    train_idx: array-like
+        index of training set, shape like [n_split_count, n_training_samples]
+
+    test_idx: array-like
+        index of testing set, shape like [n_split_count, n_testing_samples]
+
+    label_idx: array-like
+        index of labeling set, shape like [n_split_count, n_labeling_samples]
+
+    unlabel_idx: array-like
+        index of unlabeling set, shape like [n_split_count, n_unlabeling_samples]
     """
     if not isinstance(path, str):
         raise TypeError("A string is expected, but received: %s" % str(type(path)))
-    import pickle
-    f = open(os.path.abspath(path), 'rb')
-    split_setting = pickle.load(f)
-    f.close()
-    # return train_idx, test_idx, label_idx, unlabel_idx
-    return split_setting
+    saving_path = os.path.abspath(path)
+    if not os.path.isdir(saving_path):
+        raise Exception("A path to a directory is expected.")
+
+    ret_arr = []
+    for fname in ['train_idx.txt', 'test_idx.txt', 'label_idx.txt', 'unlabel_idx.txt']:
+        if not os.path.exists(os.path.join(saving_path, fname)):
+            if os.path.exists(os.path.join(saving_path, fname.split()[0]+'.npy')):
+                ret_arr.append(np.load(os.path.join(saving_path, fname.split()[0]+'.npy')))
+            else:
+                ret_arr.append(None)
+        else:
+            ret_arr.append(np.loadtxt(os.path.join(saving_path, fname)))
+    return ret_arr[0], ret_arr[1], ret_arr[2], ret_arr[3]
 
 
 def split_save(train_idx, test_idx, label_idx, unlabel_idx, path):
@@ -311,8 +328,8 @@ def split_save(train_idx, test_idx, label_idx, unlabel_idx, path):
     Parameters
     ----------
     saving_path: str
-        path to save the settings. If a dir is provided, it will generate a file called
-        'al_split.pkl' for saving.
+        path to save the settings. If a dir is not provided, it will generate a folder called
+        'acepy_split' for saving.
 
     """
     if path is None:
@@ -320,14 +337,19 @@ def split_save(train_idx, test_idx, label_idx, unlabel_idx, path):
     else:
         if not isinstance(path, str):
             raise TypeError("A string is expected, but received: %s" % str(type(path)))
-    import pickle
+
     saving_path = os.path.abspath(path)
     if os.path.isdir(saving_path):
-        f = open(os.path.join(saving_path, 'al_split.pkl'), 'wb')
+        np.savetxt(os.path.join(saving_path, 'train_idx.txt'), train_idx)
+        np.savetxt(os.path.join(saving_path, 'test_idx.txt'), test_idx)
+        if len(np.shape(label_idx)) == 2:
+            np.savetxt(os.path.join(saving_path, 'label_idx.txt'), label_idx)
+            np.savetxt(os.path.join(saving_path, 'unlabel_idx.txt'), unlabel_idx)
+        else:
+            np.save(os.path.join(saving_path, 'label_idx.npy'), label_idx)
+            np.save(os.path.join(saving_path, 'unlabel_idx.npy'), unlabel_idx)
     else:
-        f = open(os.path.abspath(saving_path), 'wb')
-    pickle.dump((train_idx, test_idx, label_idx, unlabel_idx), f)
-    f.close()
+        raise Exception("A path to a directory is expected.")
 
 
 if __name__ == '__main__':
@@ -343,4 +365,9 @@ if __name__ == '__main__':
     print(test_idx)
     print(label_idx)
     print(unlabel_idx)
-    pass
+    split_save(train_idx, test_idx, unlabel_idx, label_idx, '.')
+    train_idx, test_idx, unlabel_idx, label_idx = split_load('.')
+    print(train_idx)
+    print(test_idx)
+    print(label_idx)
+    print(unlabel_idx)

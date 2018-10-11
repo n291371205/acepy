@@ -61,7 +61,7 @@ class Oracle(utils.base.BaseVirtualOracle):
             self._cost_flag = False
         else:
             if not (len(cost) == len(labels)):
-                raise ValueError("Different length of labels and cost detected.")
+                raise ValueError("Different length of data matrix and cost detected.")
             self._cost_flag = True
         if examples is None:
             self._instance_flag = False
@@ -594,7 +594,7 @@ class Oracles:
             tb.add_row([key, display_dict[key][0], display_dict[key][1]])
         return str(tb)
 
-    def print_full_history(self):
+    def full_history(self):
         """return full version of query history"""
         oracle_name_list = list(self._oracle_dict.keys())
         oracles_num = len(oracle_name_list)
@@ -612,9 +612,30 @@ class Oracles:
             str(query_result[2]), str(query_result[1][0]), str(query_result[1][1])) for i in range(oracles_num)])
 
         tb.add_column('in all', oracle_labeling_count)
-        print(tb)
         return str(tb)
 
+
+class OracleQueryFeatures(OracleQueryMultiLabel):
+    """Oracle to give part of features of instance in feature querying setting.
+
+    When initializing, a 2D array of feature matrix and cost of EACH feature should be given.
+
+    Parameters
+    ----------
+    feature_mat: array-like
+        array of examples, initialize with this parameter to make
+        "query by instance" available. Shape like [n_samples, n_features]
+
+    indexes: array-like, optional (default=None)
+        index of examples, if not provided, it will be generated
+        automatically started from 0.
+
+    cost: array_like, optional (default=None)
+        cost of each queried instance, should be one-to-one correspondence of each feature,
+        default is all 1. Shape like [n_samples, n_classes]
+    """
+    def __init__(self, feature_mat, indexes=None, cost=None):
+        super(OracleQueryFeatures, self).__init__(labels=feature_mat, indexes=indexes, cost=cost)
 
 if __name__ == '__main__':
     a = Oracle([1, 2, 3])
@@ -647,4 +668,4 @@ if __name__ == '__main__':
     multi_oracles.query_from([4, 5], 'oracle1')
     multi_oracles.query_from([(2, 0), (1,)], 'oracle2')
     print(multi_oracles)
-    multi_oracles.print_full_history()
+    print(multi_oracles.full_history())

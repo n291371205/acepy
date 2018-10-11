@@ -39,7 +39,7 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
 
         measure: string, optional (default='entropy')
             measurement to calculate uncertainty, should be one of
-            ['least_confident', 'margin', 'entropy', 'distance_to_margin']
+            ['least_confident', 'margin', 'entropy', 'distance_to_boundary']
             --'least_confident' x* = argmax 1-P(y_hat|x) ,where y_hat = argmax P(yi|x)
             --'margin' x* = argmax P(y_hat1|x) - P(y_hat2|x), where y_hat1 and y_hat2 are the first and second
                 most probable class labels under the model, respectively.
@@ -364,36 +364,37 @@ class QueryInstanceQBC(utils.base.BaseQueryStrategy):
             score = self.calc_avg_KL_divergence([estimator.predict_proba(unlabel_x) for estimator in est_arr])
         return unlabel_index[utils.tools.nlargestarg(score, batch_size)]
 
-    def _check_committee_results(self, *arys):
+    def _check_committee_results(self, predict_matrixes):
         """check the validity of given committee predictions.
 
         Parameters
         ----------
-        arys1, arys2, ... : 2D-array
-            Predicted label matrix. Each shape like [n_samples, n_class] or [n_samples]
+        predict_matrixes: list
+            should have n elements with n predict matrix: arys1, arys2, ... aryn: 2D-array
+            The shape of each predicted label matrix is like [n_samples, n_class] or [n_samples]
 
         Returns
         -------
 
         """
-        arys = arys[0]
-        shapes = [np.shape(X) for X in arys if X is not None]
+        shapes = [np.shape(X) for X in predict_matrixes if X is not None]
         uniques = np.unique(shapes, axis=0)
         if len(uniques) > 1:
             raise Exception("Found input variables with inconsistent numbers of"
                             " shapes: %r" % [int(l) for l in shapes])
-        committee_size = len(arys)
+        committee_size = len(predict_matrixes)
         input_shape = uniques[0]
         return input_shape, committee_size
 
     @classmethod
-    def calc_vote_entropy(cls, *arys):
+    def calc_vote_entropy(cls, predict_matrixes):
         """calculate the vote entropy for measuring the level of disagreement in QBC.
 
         Parameters
         ----------
-        arys1, arys2, ... : 2D-array
-            Predicted label matrix. Each shape like [n_samples, n_class] or [n_samples]
+        predict_matrixes: list
+            should have n elements with n predict matrix: arys1, arys2, ... aryn: 2D-array
+            The shape of each predicted label matrix is like [n_samples, n_class] or [n_samples]
 
         Returns
         -------
@@ -406,25 +407,24 @@ class QueryInstanceQBC(utils.base.BaseQueryStrategy):
         classifiers. In Proceedings of the International Conference on Machine
         Learning (ICML), pages 150–157. Morgan Kaufmann, 1995.
         """
-        arys = arys[0]
         score = []
-        input_shape, committee_size = cls()._check_committee_results(arys)
+        input_shape, committee_size = cls()._check_committee_results(predict_matrixes)
         if len(input_shape) == 2:
-            ele_uni = np.unique(arys)
+            ele_uni = np.unique(predict_matrixes)
             if not (len(ele_uni) == 2 and 0 in ele_uni and 1 in ele_uni):
                 raise ValueError("The predicted label matrix must only contain 0 and 1")
             # calc each instance
             for i in range(input_shape[0]):
-                instance_mat = np.array([X[i, :] for X in arys if X is not None])
+                instance_mat = np.array([X[i, :] for X in predict_matrixes if X is not None])
                 voting = np.sum(instance_mat, axis=0)
                 tmp = 0
                 # calc each label
                 for vote in voting:
                     if vote != 0:
-                        tmp += vote / len(arys) * np.log(vote / len(arys))
+                        tmp += vote / len(predict_matrixes) * np.log(vote / len(predict_matrixes))
                 score.append(-tmp)
         else:
-            input_mat = np.array([X for X in arys if X is not None])
+            input_mat = np.array([X for X in predict_matrixes if X is not None])
             # label_arr = np.unique(input_mat)
             # calc each instance's score
             for i in range(input_shape[0]):
@@ -436,14 +436,15 @@ class QueryInstanceQBC(utils.base.BaseQueryStrategy):
         return score
 
     @classmethod
-    def calc_avg_KL_divergence(cls, *arys):
+    def calc_avg_KL_divergence(cls, predict_matrixes):
         """calculate the average Kullback-Leibler (KL) divergence for measuring the
         level of disagreement in QBC.
 
         Parameters
         ----------
-        arys1, arys2, ... : 2D-array
-            Probabilistic prediction matrix. Each shape like [n_samples, n_class]
+        predict_matrixes: list
+            should have n elements with n predict matrix: arys1, arys2, ... aryn: 2D-array
+            The shape of each predicted label matrix is like [n_samples, n_class] or [n_samples]
 
         Returns
         -------
@@ -456,14 +457,13 @@ class QueryInstanceQBC(utils.base.BaseQueryStrategy):
         text classification. In Proceedings of the International Conference on Machine
         Learning (ICML), pages 359–367. Morgan Kaufmann, 1998.
         """
-        arys = arys[0]
         score = []
-        input_shape, committee_size = cls()._check_committee_results(arys)
+        input_shape, committee_size = cls()._check_committee_results(predict_matrixes)
         if len(input_shape) == 2:
             label_num = input_shape[1]
             # calc kl div for each instance
             for i in range(input_shape[0]):
-                instance_mat = np.array([X[i, :] for X in arys if X is not None])
+                instance_mat = np.array([X[i, :] for X in predict_matrixes if X is not None])
                 tmp = 0
                 # calc each label
                 for lab in range(label_num):

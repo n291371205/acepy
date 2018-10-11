@@ -139,7 +139,7 @@ def integrate_multilabel_index(index_arr, label_size=None, check_arr=True):
     return integrated_arr
 
 
-def get_labelmatrix_in_multilabel(index, label_matrix, unknown_element=0):
+def get_labelmatrix_in_multilabel(index, data_matrix, unknown_element=0):
     """get data matrix by giving index in multi-label setting.
 
     Note:
@@ -158,7 +158,7 @@ def get_labelmatrix_in_multilabel(index, label_matrix, unknown_element=0):
         if only one index, a tuple is expected.
         Otherwise, it should be a list type with n tuples.
 
-    label_matrix:  array-like
+    data_matrix:  array-like
         matrix with [n_samples, n_features] or [n_samples, n_classes].
 
     unknown_element: object
@@ -174,10 +174,10 @@ def get_labelmatrix_in_multilabel(index, label_matrix, unknown_element=0):
     """
     # check validity
     index = check_index_multilabel(index)
-    label_matrix = check_matrix(label_matrix)
+    data_matrix = check_matrix(data_matrix)
 
-    ins_bound = label_matrix.shape[0]
-    ele_bound = label_matrix.shape[1]
+    ins_bound = data_matrix.shape[0]
+    ele_bound = data_matrix.shape[1]
 
     index_arr = []  # record if a row is already constructed
     current_rows = 0  # record how many rows have been constructed
@@ -210,13 +210,13 @@ def get_labelmatrix_in_multilabel(index, label_matrix, unknown_element=0):
         # construct mat
         if ind_row == -1:
             tmp = np.zeros((1, ele_bound)) + unknown_element
-            tmp[0, label_ind] = label_matrix[example_ind, label_ind]
+            tmp[0, label_ind] = data_matrix[example_ind, label_ind]
             if label_indexed is None:
                 label_indexed = tmp.copy()
             else:
                 label_indexed = np.append(label_indexed, tmp, axis=0)
         else:
-            label_indexed[ind_row, label_ind] = label_matrix[example_ind, label_ind]
+            label_indexed[ind_row, label_ind] = data_matrix[example_ind, label_ind]
     return label_indexed, index_arr
 
 

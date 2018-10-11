@@ -130,10 +130,10 @@ class QueryInstanceQUIRE(utils.base.BaseQueryStrategy):
 
         Parameters
         ----------
-        label_index: array or set like
+        label_index: array-like
             index of label set
 
-        unlabel_index: array or set like
+        unlabel_index: array-like
             index of unlabel set
 
         Returns

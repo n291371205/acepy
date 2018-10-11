@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import prettytable as pt
 import numpy as np
 import scipy.stats
+import scipy.io as scio
 
 import experiment_saver.al_experiment
 from utils.ace_warnings import *
