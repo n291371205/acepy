@@ -1,6 +1,10 @@
 """
-Class to store necessary information of
-an active learning experiment for analysis
+Class to encapsulate various tools
+and implement the main loop of active learning.
+
+To run the experiment with only one class,
+we have to impose some restrictions to make
+sure the robustness of the code.
 """
 # Authors: Ying-Peng Tang
 # License: BSD 3 clause
@@ -8,238 +12,80 @@ an active learning experiment for analysis
 import copy
 import os
 import pickle
-import warnings
 
 from sklearn.svm import SVC
 from sklearn.utils import check_array
 from sklearn.utils.multiclass import unique_labels, type_of_target
 
-import experiment_saver
-from data_process.al_split import split, split_multi_label
+from data_process.al_split import split, split_multi_label, split_features
 from experiment_saver.state_io import StateIO
-from oracle.oracle import OracleQueryMultiLabel, Oracle
+from oracle.oracle import OracleQueryMultiLabel, Oracle, OracleQueryFeatures
 from query_strategy.query_strategy import QueryInstanceUncertainty, QueryRandom
 from utils.ace_warnings import *
-from utils.ace_warnings import FunctionWarning
-from utils.al_collections import IndexCollection, MultiLabelIndexCollection
-from utils.knowledge_db import MatrixKnowledgeDB
+from utils.al_collections import IndexCollection, MultiLabelIndexCollection, FeatureIndexCollection
+from utils.knowledge_db import MatrixKnowledgeDB, ElementKnowledgeDB
 from utils.query_type import check_query_type
+from utils.tools import get_labelmatrix_in_multilabel
+from utils.stopping_criteria import StoppingCriteria
+from analyser.experiment_analyser import ExperimentAnalyser
+from utils.multi_thread import aceThreading
 
 
-class AlExperiment:
-    """
-    Class to store necessary information of
-    an active learning experiment for analysis
-    """
-
-    def __init__(self, method_name, remark=None):
-        self.method_name = method_name
-        self.remark = remark
-        self.__results = list()
-
-    def add_fold(self, src):
-        """
-        Add one fold of active learning experiment.
-
-        Parameters
-        ----------
-        src: object or str
-            StateIO object or path to the intermediate results file.
-        """
-        if isinstance(src, experiment_saver.state_io.StateIO):
-            if not src.check_batch_size():
-                warnings.warn('Checking validity fails, different batch size is found.', category=ValidityWarning)
-            self.__add_fold_by_object(src)
-        elif isinstance(src, str):
-            self.__add_fold_from_file(src)
-        else:
-            raise TypeError('StateIO object or str is expected, but received:%s' % str(type(src)),
-                            category=UnexpectedParameterWarning)
-
-    def add_folds(self, folds):
-        """Add multiple folds.
-
-        Parameters
-        ----------
-        folds: list
-            The list contains n StateIO objects.
-        """
-        for item in folds:
-            self.add_fold(item)
-
-    def __add_fold_by_object(self, result):
-        """
-        Add one fold of active learning experiment
-
-        Parameters
-        ----------
-        result: utils.StateIO
-            object stored a complete fold of active learning experiment
-        """
-        self.__results.append(copy.deepcopy(result))
-
-    def __add_fold_from_file(self, path):
-        """
-        Add one fold of active learning experiment from file
-
-        Parameters
-        ----------
-        path: str
-            path of result file.
-        """
-        f = open(os.path.abspath(path), 'rb')
-        result = pickle.load(f)
-        f.close()
-        assert (isinstance(result, experiment_saver.StateIO))
-        if not result.check_batch_size():
-            warnings.warn('Checking validity fails, different batch size is found.',
-                          category=ValidityWarning)
-        self.__results.append(copy.deepcopy(result))
-
-    def check_experiments(self):
-        """
-        Check results stored in this object that:
-        1. whether all folds have the same length. If not, calc the shortest one
-        2. whether the batch size is the same.
-        3. calculate additional information.
-
-        Returns
-        -------
-
-        """
-        if self.check_batch_size and self.check_length:
-            return True
-        else:
-            return False
-
-    def check_batch_size(self):
-        """
-        if all queries have the same batch size.
-
-        Returns
-        -------
-
-        """
-        bs = set()
-        for item in self.__results:
-            if not item.check_batch_size():
-                return False
-            else:
-                bs.add(item.batch_size)
-        if len(bs) == 1:
-            return True
-        else:
-            return False
-
-    def check_length(self):
-        """
-        if all folds have the same numbers of query.
-
-        Returns
-        -------
-        bool
-        """
-        ls = set()
-        for item in self.__results:
-            ls.add(len(item))
-        if len(ls) == 1:
-            return True
-        else:
-            return False
-
-    def get_batch_size(self):
-        """
-
-        Returns
-        -------
-        -1 if not the same batch size
-        """
-        if self.check_batch_size:
-            return self.__results[0].batch_size
-        else:
-            return -1
-
-    def get_length(self):
-        ls = list()
-        for item in self.__results:
-            ls.append(len(item))
-        return min(ls)
-
-    def __len__(self):
-        return len(self.__results)
-
-    def __getitem__(self, item):
-        return self.__results.__getitem__(item)
-
-    def __contains__(self, other):
-        return other in self.__results
-
-    def __iter__(self):
-        return iter(self.__results)
-
-    def __repr__(self):
-        return
-
-
-class ExperimentSetting:
-    """Experiment Manager is a tool class which initializes the active learning
+class ToolBox:
+    """Tool box is a tool class which initializes the active learning
     elements according to the setting in order to reduce the error and improve
     the usability.
 
-    Elements of active learning experiments includes:
-    1. Split data set and return the initialized container
-    2. Oracle
-    3. Intermediate results saver
-    4. Classical query methods
-    5. Stopping criteria
+    In initializing, necessary information to initialize various tool classes
+    must be given. You can set the split setting in initializing or generate a new
+    split by ToolBox.split.
+
+    Note that, using ToolBox to initialize other tools is optional, you may use
+    each modules independently.
 
     Parameters
     ----------
     y: array-like
         labels of given data [n_samples, n_labels] or [n_samples]
 
-    X: array-like, optional
-        data matrix with [n_samples, n_features]
+    X: array-like, optional (default=None)
+        data matrix with [n_samples, n_features].
 
     instance_indexes: array-like, optional (default=None)
         indexes of instances, it should be one-to-one correspondence of
         X, if not provided, it will be generated automatically for each
-        xi started from 0.
+        x_i started from 0.
         It also can be a list contains names of instances, used for image datasets.
         The split will only depend on the indexes if X is not provided.
 
-    model: object, optional (default=SVC)
-        The baseline model for evaluating the active learning strategy.
-
     query_type: str, optional (default='AllLabels')
         active learning settings. It will determine how to split data.
+        should be one of ['AllLabels', 'Partlabels', 'Features']:
 
-    test_ratio: float, optional (default=0.3)
-        ratio of test set
+        AllLabels: query all labels of an selected instance.
+            Support scene: binary classification, multi-class classification, multi-label classification, regression
 
-    initial_label_rate: float, optional (default=0.05)
-        ratio of initial label set
-        e.g. initial_labelset*(1-test_ratio)*n_samples
+        Partlabels: query part of labels of an instance.
+            Support scene: multi-label classification
 
-    split_count: int, optional (default=10)
-        random split data split_count times
-
-    all_class: bool, optional (default=True)
-        whether each split will contain at least one instance for each class.
-        If False, a totally random split will be performed.
-
-    partially_labeled: bool, optional (default=False)
-        Whether split the data as partially labeled in the multi-label setting.
-        If False, the labeled set is fully labeled, otherwise, only part of labels of each
-        instance will be labeled initialized.
-        Only available in multi-label setting.
-
-    performance: str, optional (default='Accuracy')
-        The performance index of the experiment.
+        Features: query part of features of an instance.
+            Support scene: missing features
 
     saving_path: str, optional (default='.')
         path to save current settings. if None is provided, then it will not
         save the path
+
+    train_idx: array-like, optional (default=None)
+        index of training set, shape like [n_split_count, n_training_indexex]
+
+    test_idx: array-like, optional (default=None)
+        index of testing set, shape like [n_split_count, n_testing_indexex]
+
+    label_idx: array-like, optional (default=None)
+        index of labeling set, shape like [n_split_count, n_labeling_indexex]
+
+    unlabel_idx: array-like, optional (default=None)
+        index of unlabeling set, shape like [n_split_count, n_unlabeling_indexex]
 
 
     Attributes
@@ -251,27 +97,22 @@ class ExperimentSetting:
 
     """
 
-    def __init__(self, y, X=None, instance_indexes=None, model=SVC(),
-                 query_type='AllLabels', test_ratio=0.3, initial_label_rate=0.05,
-                 split_count=10, all_class=True, partially_labeled=False, performance='Accuracy', saving_path='.'):
-        if X is None and y is None and instance_indexes is None:
-            raise Exception("Must provide one of X, y or instance_indexes.")
+    def __init__(self, y, X=None, instance_indexes=None,
+                 query_type='AllLabels', saving_path='.', **kwargs):
         self._index_len = None
-
         # check and record parameters
         self._y = check_array(y, ensure_2d=False, dtype=None)
-        self._index_len = len(self._y)
-        self._label_num = len(unique_labels(self._y))
         ytype = type_of_target(y)
         if ytype in ['multilabel-indicator', 'multilabel-sequences']:
             self._target_type = 'multilabel'
         else:
             self._target_type = ytype
-        if X is None:
-            warnings.warn("Instances matrix or acceptable model is not given, The initial point can not "
-                          "be calculated automatically.", category=FunctionWarning)
-            self._instance_flag = False
-        else:
+        self._index_len = len(self._y)
+        self._label_space = unique_labels(self._y)
+        self._label_num = len(self._label_space)
+
+        self._instance_flag = False
+        if X is not None:
             self._instance_flag = True
             self._X = check_array(X, accept_sparse='csr', ensure_2d=True, order='C')
             n_samples = self._X.shape[0]
@@ -279,121 +120,249 @@ class ExperimentSetting:
                 raise ValueError("Different length of instances and labels found.")
             else:
                 self._index_len = n_samples
+
         if instance_indexes is None:
             self._indexes = [i for i in range(self._index_len)]
         else:
             if len(instance_indexes) != self._index_len:
                 raise ValueError("Length of given instance_indexes do not accord the data set.")
             self._indexes = copy.copy(instance_indexes)
-        # check if the model is acceptable
-        if not (hasattr(model, 'fit') and hasattr(model, 'predict')):
-            warnings.warn("Instances matrix or acceptable model is not given, The initial point can not "
-                            "be calculated automatically.", category=FunctionWarning)
-            self._model_flag = False
-        else:
-            self._model_flag = True
-            self.model = model
-        # still in progress
+
         if check_query_type(query_type):
             self.query_type = query_type
+            if self.query_type == 'Features' and not self._instance_flag:
+                raise Exception("In feature querying, feature matrix must be given.")
         else:
             raise NotImplementedError("Query type %s is not implemented." % type)
-        self.saving_path = saving_path
-        self.split_count = split_count
-        self.test_ratio = test_ratio
-        self.initial_label_rate = initial_label_rate
+
+        self._split = False
+        train_idx = kwargs.pop('train_idx', None)
+        test_idx = kwargs.pop('test_idx', None)
+        label_idx = kwargs.pop('label_idx', None)
+        unlabel_idx = kwargs.pop('unlabel_idx', None)
+        if train_idx is not None and test_idx is not None and label_idx is not None and unlabel_idx is not None:
+            if not (len(train_idx) == len(test_idx) == len(label_idx) == len(unlabel_idx)):
+                raise ValueError("train_idx, test_idx, label_idx, unlabel_idx "
+                                 "should have the same split count (length)")
+            self._split = True
+            self.train_idx = train_idx
+            self.test_idx = test_idx
+            self.label_idx = label_idx
+            self.unlabel_idx = unlabel_idx
+            self.split_count = len(train_idx)
+
+        self._saving_path = saving_path
+        if saving_path is not None:
+            if not isinstance(self._saving_path, str):
+                raise TypeError("A string is expected, but received: %s" % str(type(self._saving_path)))
+            self.save_settings(saving_path)
+
+    def split_AL(self, test_ratio=0.3, initial_label_rate=0.05,
+                 split_count=10, all_class=True):
+        """split dataset for active learning experiment.
+        The labeled set for multi-label setting is fully labeled.
+
+        Parameters
+        ----------
+        test_ratio: float, optional (default=0.3)
+            ratio of test set
+
+        initial_label_rate: float, optional (default=0.05)
+            ratio of initial label set or the existed features (missing rate = 1-initial_label_rate)
+            e.g. initial_labelset*(1-test_ratio)*n_samples
+
+        split_count: int, optional (default=10)
+            random split data split_count times
+
+        all_class: bool, optional (default=True)
+            whether each split will contain at least one instance for each class.
+            If False, a totally random split will be performed.
+
+        Returns
+        -------
+        train_idx: array-like
+            index of training set, shape like [n_split_count, n_training_indexex]
+
+        test_idx: array-like
+            index of testing set, shape like [n_split_count, n_testing_indexex]
+
+        label_idx: array-like
+            index of labeling set, shape like [n_split_count, n_labeling_indexex]
+
+        unlabel_idx: array-like
+            index of unlabeling set, shape like [n_split_count, n_unlabeling_indexex]
+
+        """
         # should support other query types in the future
-        if self._target_type != 'multilabel':
-            self.train_idx, self.test_idx, self.unlabel_idx, self.label_idx = split(
-                X=self._X if self._instance_flag else None,
-                y=self._y if self._label_flag else None,
-                query_type=self.query_type, test_ratio=self.test_ratio,
-                initial_label_rate=self.initial_label_rate,
-                split_count=self.split_count,
-                instance_indexes=self._indexes,
-                all_class=all_class)
+        self.split_count = split_count
+        if self._target_type != 'Features':
+            if self._target_type == 'multilabel':
+                self.train_idx, self.test_idx, self.label_idx, self.unlabel_idx = split(
+                    X=self._X if self._instance_flag else None,
+                    y=self._y,
+                    query_type=self.query_type, test_ratio=test_ratio,
+                    initial_label_rate=initial_label_rate,
+                    split_count=split_count,
+                    instance_indexes=self._indexes,
+                    all_class=all_class)
+            else:
+                self.train_idx, self.test_idx, self.label_idx, self.unlabel_idx = split_multi_label(
+                    y=self._y,
+                    label_shape=self._y.shape,
+                    test_ratio=test_ratio,
+                    initial_label_rate=initial_label_rate,
+                    split_count=split_count,
+                    all_class=all_class,
+                    partially_labeled=False)
         else:
-            self.train_idx, self.test_idx, self.unlabel_idx, self.label_idx = split_multi_label(
-                y=self._y,
-                test_ratio=self.test_ratio,
-                initial_label_rate=self.initial_label_rate,
-                split_count=self.split_count,
-                all_class=all_class,
-                partially_labeled=partially_labeled
+            self.train_idx, self.test_idx, self.label_idx, self.unlabel_idx = split_features(
+                feature_matrix=self._X,
+                test_ratio=test_ratio,
+                missing_rate=1 - initial_label_rate,
+                split_count=split_count,
+                all_features=all_class
             )
-        self.save_settings(saving_path)
+        self._split = True
+        return self.train_idx, self.test_idx, self.label_idx, self.unlabel_idx
 
     def get_split(self, round=None):
+        if not self._split:
+            raise Exception("The split setting is unknown, use split_AL() first.")
         if round is not None:
             assert (0 <= round < self.split_count)
-            if self._target_type != 'multilabel':
-                return copy.copy(self.train_idx[round]), copy.copy(self.test_idx[round]), IndexCollection(
-                    self.unlabel_idx[round]), IndexCollection(self.label_idx[round])
+            if self.query_type == 'Features':
+                return copy.copy(self.train_idx[round]), copy.copy(self.test_idx[round]), FeatureIndexCollection(
+                    self.label_idx[round], self._X.shape[1]), FeatureIndexCollection(self.unlabel_idx[round],
+                                                                                     self._X.shape[1])
             else:
-                return copy.copy(self.train_idx[round]), copy.copy(self.test_idx[round]), MultiLabelIndexCollection(
-                    self.unlabel_idx[round], self._label_num), MultiLabelIndexCollection(self.label_idx[round],
-                                                                                         self._label_num)
+                if self._target_type == 'multilabel':
+                    return copy.copy(self.train_idx[round]), copy.copy(self.test_idx[round]), MultiLabelIndexCollection(
+                        self.label_idx[round], self._label_num), MultiLabelIndexCollection(self.unlabel_idx[round],
+                                                                                           self._label_num)
+                else:
+                    return copy.copy(self.train_idx[round]), copy.copy(self.test_idx[round]), IndexCollection(
+                        self.label_idx[round]), IndexCollection(self.unlabel_idx[round])
         else:
-            return copy.deepcopy(self.train_idx), copy.deepcopy(self.test_idx), self.unlabel_idx, self.label_idx
+            return copy.deepcopy(self.train_idx), copy.deepcopy(self.test_idx), \
+                   copy.deepcopy(self.label_idx), copy.deepcopy(self.unlabel_idx)
 
     def get_clean_oracle(self):
-        ytype = type_of_target(self._y)
-        if ytype in ['multilabel-indicator', 'multilabel-sequences']:
-            return OracleQueryMultiLabel(self._y)
-        elif ytype in ['binary', 'multiclass']:
-            return Oracle(self._y)
+        if self.query_type == 'Features':
+            return OracleQueryFeatures(feature_mat=self._X)
+        elif self.query_type == 'AllLabels':
+            if self._target_type == 'multilabel':
+                return OracleQueryMultiLabel(self._y)
+            else:
+                return Oracle(self._y)
 
     def get_saver(self, round):
         assert (0 <= round < self.split_count)
         train_id, test_id, Ucollection, Lcollection = self.get_split(round)
-        if self._instance_flag and self._model_flag:
-            # performance is not implemented yet.
-            # return StateIO(round, train_id, test_id, Ucollection, Lcollection, initial_point=accuracy)
-            return StateIO(round, train_id, test_id, Ucollection, Lcollection)
-        else:
-            return StateIO(round, train_id, test_id, Ucollection, Lcollection)
+        return StateIO(round, train_id, test_id, Ucollection, Lcollection)
 
-    def get_knowledge_db(self, round):
+    def __get_knowledge_db(self, round):
         assert (0 <= round < self.split_count)
         train_id, test_id, Ucollection, Lcollection = self.get_split(round)
-        if self._target_type != 'multilabel':
-            return MatrixKnowledgeDB(labels=self._y[Lcollection.index], examples=self._X[Lcollection.index, :],
+        if self.query_type == 'AllLabels':
+            return MatrixKnowledgeDB(labels=self._y[Lcollection.index],
+                                     examples=self._X[Lcollection.index, :] if self._instance_flag else None,
                                      indexes=Lcollection.index)
         else:
-            raise NotImplementedError("Knowledge DB for multi label is not implemented yet.")
+            raise NotImplemented("other query types for knowledge DB is not implemented yet.")
 
-    def uncertainty_selection(self, measure='entropy', scenario='pool'):
-        return QueryInstanceUncertainty(X=self._X, y=self._y, measure=measure, scenario=scenario)
-
-    def random_selection(self):
-        return QueryRandom()
-
-    def get_model(self):
-        return self.model
-
-    def save_settings(self, saving_path):
-        """Save the experiment settings to file for auditting or loading for other methods.
+    def get_query_strategy(self, strategy_name="random"):
+        """Return the query strategy object.
 
         Parameters
         ----------
-        saving_path: str
-            path to save the settings. If a dir is provided, it will generate a file called
-            'al_settings.pkl' for saving.
+        strategy_name: str, optional (default='random')
+
+        Returns
+        -------
 
         """
-        if saving_path is None:
+        if self.query_type != "AllLabels":
+            raise NotImplemented("Query strategy for other query types is not implemented yet.")
+
+    def get_multilabel_matrix_by_index(self, index, missing_value=0):
+        """Index multilabel matrix by index. It can have missing value (query example-label pairs),
+        The unknown elements will be set to missing_value
+
+        Parameters
+        ----------
+        index
+        missing_value
+
+        Returns
+        -------
+
+        """
+        if self._target_type != "multilabel":
+            raise Exception("This function is only available in multi label setting.")
+        return get_labelmatrix_in_multilabel(index=index, data_matrix=self._y, unknown_element=missing_value)
+
+    def get_default_model(self):
+        return SVC()
+
+    def get_stopping_criterion(self, stopping_criteria=None, value=None):
+        """Return example stopping criterion.
+
+        Parameters
+        __________
+        stopping_criteria: str, optional (default=None)
+            stopping criteria, must be one of: [None, 'num_of_queries', 'cost_limit', 'percent_of_unlabel', 'time_limit']
+
+            None: stop when no unlabeled samples available
+            'num_of_queries': stop when preset number of quiries is reached
+            'cost_limit': stop when cost reaches the limit.
+            'percent_of_unlabel': stop when specific percentage of unlabeled data pool is labeled.
+            'time_limit': stop when CPU time reaches the limit.
+        """
+        return StoppingCriteria(stopping_criteria=stopping_criteria, value=value)
+
+    def get_experiment_analyser(self):
+        """Return ExperimentAnalyser object"""
+        return ExperimentAnalyser()
+
+    def get_aceThreading(self, max_thread=None, refresh_interval=1, saving_path='.'):
+        """Return the multithreading tool class
+
+        Parameters
+        __________
+        max_thread: int, optional (default=None)
+            The max threads for running at the same time. If not provided, it will run all rounds simultaneously.
+
+        refresh_interval: float, optional (default=1.0)
+            how many seconds to refresh the current state output, default is 1.0.
+
+        saving_path: str, optional (default='.')
+            the path to save the result files.
+        """
+        if not self._instance_flag:
+            raise Exception("instance matrix is necessary for initializing aceThreading object.")
+        return aceThreading(examples=self._X, labels=self._y,
+                            train_idx=self.train_idx, test_idx=self.test_idx,
+                            label_index=self.label_idx,
+                            unlabel_index=self.unlabel_idx,
+                            refresh_interval=refresh_interval,
+                            max_thread=max_thread,
+                            saving_path=saving_path)
+
+    def save_settings(self):
+        """Save the experiment settings to file for auditting or loading for other methods."""
+        if self._saving_path is None:
             return
-        else:
-            if not isinstance(saving_path, str):
-                raise TypeError("A string is expected, but received: %s" % str(type(saving_path)))
-        import pickle
-        saving_path = os.path.abspath(saving_path)
+        saving_path = os.path.abspath(self._saving_path)
         if os.path.isdir(saving_path):
             f = open(os.path.join(saving_path, 'al_settings.pkl'), 'wb')
         else:
             f = open(os.path.abspath(saving_path), 'wb')
         pickle.dump(self, f)
         f.close()
+
+    def IndexCollection(self, array=None):
+        """Return an IndexCollection object initialized with array"""
+        return IndexCollection(array)
 
     @classmethod
     def load_settings(cls, path):
@@ -406,7 +375,7 @@ class ExperimentSetting:
 
         Returns
         -------
-        setting: ExperimentSetting
+        setting: ToolBox
             Object of ExperimentSetting.
         """
         if not isinstance(path, str):
@@ -416,3 +385,41 @@ class ExperimentSetting:
         setting_from_file = pickle.load(f)
         f.close()
         return setting_from_file
+
+
+class AlExperiment:
+    """AlExperiment is a  class to encapsulate various tools
+    and implement the main loop of active learning.
+
+    To run the experiment with only one class,
+    we have to impose some restrictions to make
+    sure the robustness of the code.
+
+    Parameters
+    ----------
+    model: object
+        An model object which accord the scikit-learn api
+
+    performance_metric: str, optional (default='accuracy')
+        The performance metric
+    """
+
+    def __init__(self, model=SVC(), performance_metric='accuracy', **kwargs):
+        pass
+
+    def set_query_strategy(self, strategy="Uncertainty", **kwargs):
+        """
+
+        Parameters
+        ----------
+        strategy: {str, callable}, optional (default='Uncertainty')
+            The query strategy function.
+            Giving str to use a pre-defined strategy
+            Giving callable to use a user-defined strategy.
+
+        kwargs: dict, optional
+            The args used in user-defined strategy.
+            Note that, each parameters should be static.
+            The parameters will be fed to the callable object automatically.
+        """
+        pass

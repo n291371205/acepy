@@ -5,7 +5,7 @@ from data_process.al_split import split
 from experiment_saver.state import State
 
 X, y = load_iris(return_X_y=True)
-Train_idx, Test_idx, U_pool, L_pool = split(X=X, y=y, test_ratio=0.3, initial_label_rate=0.2, split_count=5)
+Train_idx, Test_idx, L_pool, U_pool = split(X=X, y=y, test_ratio=0.3, initial_label_rate=0.2, split_count=5)
 
 # main loop
 from query_strategy.query_strategy import QueryInstanceUncertainty
@@ -17,7 +17,7 @@ reg = linear_model.LogisticRegression()
 
 # recovery
 saver = StateIO.load('C:\Code\\acepy\AL_result\experiment_result_file_round_0')
-train_id, test_id, Ucollection, Lcollection = saver.recovery(5)
+train_id, test_id, Lcollection, Ucollection = saver.recovery(5)
 reg.fit(X=X[Lcollection.index, :], y=y[Lcollection.index])
 
 while len(Ucollection)>10:

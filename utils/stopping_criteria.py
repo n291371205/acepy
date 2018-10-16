@@ -48,8 +48,6 @@ class StoppingCriteria:
         self._stopping_criteria = stopping_criteria
         if isinstance(value, np.generic):
             value = np.asscalar(value)
-        if stopping_criteria is None:
-            self._is_stop = 1
 
         if stopping_criteria == 'num_of_queries':
             if not isinstance(value, int):
@@ -64,7 +62,7 @@ class StoppingCriteria:
         # collect information
         self._current_iter = 0
         self._accum_cost = 0
-        self._current_unlabel = 0
+        self._current_unlabel = 100
         self._percent = 1.0
 
     def is_stop(self):
@@ -100,10 +98,13 @@ class StoppingCriteria:
         saver: StateIO
             StateIO object
         """
+        _,_,_, Uindex = saver.get_workspace()
+        _, _, _, ini_Uindex = saver.get_workspace(iteration=0)
+        self._current_unlabel = len(Uindex)
         if self._stopping_criteria == 'num_of_queries':
             self._current_iter = len(saver)
         elif self._stopping_criteria == 'cost_limit':
             self._accum_cost = saver.cost_inall
         elif self._stopping_criteria == 'percent_of_unlabel':
-            self._percent = saver.queried_percentage
+            self._percent = (len(ini_Uindex)-len(Uindex))/len(ini_Uindex)
         return self

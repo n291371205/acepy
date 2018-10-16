@@ -22,6 +22,7 @@ from utils.tools import randperm
 def split(X=None, y=None, instance_indexes=None, query_type=None, test_ratio=0.3, initial_label_rate=0.05,
           split_count=10, all_class=True, saving_path='.'):
     """Split given data.
+    provide one of X, y or instance_indexes to execute the split.
 
     Parameters
     ----------
@@ -54,20 +55,21 @@ def split(X=None, y=None, instance_indexes=None, query_type=None, test_ratio=0.3
         If False, a totally random split will be performed.
 
     saving_path: str, optional (default='.')
+        Giving None to disable saving.
 
     Returns
     -------
     train_idx: array-like
-        index of training set, shape like [n_split_count, n_training_samples]
+        index of training set, shape like [n_split_count, n_training_indexex]
 
     test_idx: array-like
-        index of testing set, shape like [n_split_count, n_testing_samples]
+        index of testing set, shape like [n_split_count, n_testing_indexex]
 
     label_idx: array-like
-        index of labeling set, shape like [n_split_count, n_labeling_samples]
+        index of labeling set, shape like [n_split_count, n_labeling_indexex]
 
     unlabel_idx: array-like
-        index of unlabeling set, shape like [n_split_count, n_unlabeling_samples]
+        index of unlabeling set, shape like [n_split_count, n_unlabeling_indexex]
     """
     # check parameters
     if X is None and y is None and instance_indexes is None:
@@ -144,12 +146,13 @@ def split(X=None, y=None, instance_indexes=None, query_type=None, test_ratio=0.3
 
     split_save(train_idx=train_idx, test_idx=test_idx, label_idx=label_idx,
                unlabel_idx=unlabel_idx, path=saving_path)
-    return train_idx, test_idx, unlabel_idx, label_idx
+    return train_idx, test_idx, label_idx, unlabel_idx
 
 
 def split_multi_label(y=None, label_shape=None, test_ratio=0.3, initial_label_rate=0.05,
                       split_count=10, all_class=True, partially_labeled=False, saving_path='.'):
     """Split given label matrix in multi label setting.
+    Giving one of y or label_shape to split the data.
 
     Parameters
     ----------
@@ -182,36 +185,37 @@ def split_multi_label(y=None, label_shape=None, test_ratio=0.3, initial_label_ra
         Only available in multi-label setting.
 
     saving_path: str, optional (default='.')
+        Giving None to disable saving.
 
     Returns
     -------
     train_idx: array-like
-        index of training set, shape like [n_split_count, n_training_samples]
+        index of training set, shape like [n_split_count, n_training_indexex]
 
     test_idx: array-like
-        index of testing set, shape like [n_split_count, n_testing_samples]
+        index of testing set, shape like [n_split_count, n_testing_indexex]
 
     label_idx: array-like
-        index of labeling set, shape like [n_split_count, n_labeling_samples]
+        index of labeling set, shape like [n_split_count, n_labeling_indexex]
 
     unlabel_idx: array-like
-        index of unlabeling set, shape like [n_split_count, n_unlabeling_samples]
+        index of unlabeling set, shape like [n_split_count, n_unlabeling_indexex]
 
     """
 
     # check parameters
     if y is None and label_shape is None:
-        raise Exception("Must provide one of y or label_shape.")
+        raise Exception("Must provide one of data matrix or matrix_shape.")
     data_shape = None
     if y is not None:
         y = check_matrix(y)
         ytype = type_of_target(y)
         if ytype not in ['multilabel-indicator', 'multilabel-sequences']:
-            raise ValueError("y must be a 2D array with the shape like [n_samples, n_labels]")
+            raise ValueError("data matrix must be a 2D array with the shape like [n_samples, n_labels]")
         data_shape = y.shape
     if label_shape is not None:
         if not isinstance(label_shape, tuple) and len(label_shape) == 2:
-            raise TypeError("the shape of y, should be a tuple with 2 elements."
+            raise TypeError("the shape of data matrix should be a tuple with 2 elements."
                             "The first one is the number of instances, and the other is the"
                             "number of labels.")
         data_shape = label_shape
@@ -279,8 +283,22 @@ def split_multi_label(y=None, label_shape=None, test_ratio=0.3, initial_label_ra
             unlabel_idx.append([(i,) for i in tp_train[cutpoint:]])
     split_save(train_idx=train_idx, test_idx=test_idx, label_idx=label_idx,
                unlabel_idx=unlabel_idx, path=saving_path)
-    return train_idx, test_idx, unlabel_idx, label_idx
+    return train_idx, test_idx, label_idx, unlabel_idx
 
+
+def split_features(feature_matrix=None, feature_matrix_shape=None, test_ratio=0.3, missing_rate=0.5,
+                      split_count=10, all_features=True, saving_path='.'):
+    """
+    Split given feature matrix in feature querying setting.
+    Giving one of feature_matrix or feature_matrix_shape to split the data.
+
+    The matrix will be split randomly in split_count times, the testing set
+    is the set of instances with complete feature vectors. The training set
+    has missing feature with the rate of missing_rate.
+    """
+    return split_multi_label(y=feature_matrix, label_shape=feature_matrix_shape, test_ratio=test_ratio,
+                             initial_label_rate=1-missing_rate, split_count=split_count,
+                             all_class=all_features, partially_labeled=True, saving_path=saving_path)
 
 def split_load(path):
     """Load split from path.
@@ -313,8 +331,8 @@ def split_load(path):
     ret_arr = []
     for fname in ['train_idx.txt', 'test_idx.txt', 'label_idx.txt', 'unlabel_idx.txt']:
         if not os.path.exists(os.path.join(saving_path, fname)):
-            if os.path.exists(os.path.join(saving_path, fname.split()[0]+'.npy')):
-                ret_arr.append(np.load(os.path.join(saving_path, fname.split()[0]+'.npy')))
+            if os.path.exists(os.path.join(saving_path, fname.split()[0] + '.npy')):
+                ret_arr.append(np.load(os.path.join(saving_path, fname.split()[0] + '.npy')))
             else:
                 ret_arr.append(None)
         else:
@@ -353,21 +371,21 @@ def split_save(train_idx, test_idx, label_idx, unlabel_idx, path):
 
 
 if __name__ == '__main__':
-    train_idx, test_idx, unlabel_idx, label_idx = split(X=np.random.random((10, 10)), y=np.random.randn(10, 10),
+    train_idx, test_idx, label_idx, unlabel_idx = split(X=np.random.random((10, 10)), y=np.random.randn(10, 10),
                                                         all_class=False)
     print(train_idx)
     print(test_idx)
     print(label_idx)
     print(unlabel_idx)
-    train_idx, test_idx, unlabel_idx, label_idx = split_multi_label(y=np.random.randint(0, 2, 800).reshape(100, -1),
+    train_idx, test_idx, label_idx, unlabel_idx = split_multi_label(y=np.random.randint(0, 2, 800).reshape(100, -1),
                                                                     initial_label_rate=0.15, partially_labeled=True)
     print(train_idx)
     print(test_idx)
     print(label_idx)
     print(unlabel_idx)
-    split_save(train_idx, test_idx, unlabel_idx, label_idx, '.')
-    train_idx, test_idx, unlabel_idx, label_idx = split_load('.')
-    print(train_idx)
-    print(test_idx)
-    print(label_idx)
-    print(unlabel_idx)
+    # split_save(train_idx, test_idx, label_idx, unlabel_idx, '.')
+    # train_idx, test_idx, label_idx, unlabel_idx = split_load('.')
+    # print(train_idx)
+    # print(test_idx)
+    # print(label_idx)
+    # print(unlabel_idx)

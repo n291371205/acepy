@@ -1,10 +1,7 @@
 """
-get_Matrix() #get data mat according to the index
-kernel()  # claculate kernel matrix
-feature_scale() #normalization
-ttest()  #ttest
-
+Misc functions to be settled
 """
+
 from __future__ import division
 from sklearn.utils.validation import check_array
 import numpy as np

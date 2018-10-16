@@ -15,10 +15,20 @@ def check_query_type(type):
         AllowedType:
             AllLabels: Query all labels of an instance
             PartLabels: Query part of labels of an instance (Only available in multi-label setting)
+            Features: Query unlab_features of instances
         NotImplementedQueryType
             Relations: Query relations between two object
-            Features: Query unlab_features of instances
             Examples: Query examples given constrains
+
+
+        AllLabels: query all labels of an selected instance.
+            Support scene: binary classification, multi-class classification, multi-label classification, regression
+
+        Partlabels: query part of labels of an instance.
+            Support scene: multi-label classification
+
+        Features: query part of features of an instance.
+            Support scene: missing features
 
     Parameters
     ----------
@@ -30,8 +40,8 @@ def check_query_type(type):
 
     """
     assert (isinstance(type, str))
-    QueryType = ['AllLabels', 'PartLabels']
-    NotImplementedQueryType = ['Relations', 'Features', 'Examples']
+    QueryType = ['AllLabels', 'PartLabels', 'Features']
+    NotImplementedQueryType = ['Relations', 'Examples']
     if type in QueryType:
         return True
     else:

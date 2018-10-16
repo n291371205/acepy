@@ -277,7 +277,7 @@ class Oracle(utils.base.BaseVirtualOracle):
 
     @classmethod
     def load_oracle(cls, path):
-        """Loading ExperimentSetting object from path.
+        """Loading ToolBox object from path.
 
         Parameters
         ----------
@@ -286,8 +286,8 @@ class Oracle(utils.base.BaseVirtualOracle):
 
         Returns
         -------
-        setting: ExperimentSetting
-            Object of ExperimentSetting.
+        setting: ToolBox
+            Object of ToolBox.
         """
         if not isinstance(path, str):
             raise TypeError("A string is expected, but received: %s" % str(type(path)))

@@ -23,6 +23,7 @@ import prettytable as pt
 import experiment_saver.state
 from utils.ace_warnings import *
 import numpy as np
+from utils.al_collections import IndexCollection
 
 
 class StateIO:
@@ -68,7 +69,7 @@ class StateIO:
         How many queries will trigger a print when verbose is True
     """
 
-    def __init__(self, round, train_idx, test_idx, init_U, init_L, initial_point=None, saving_path=None,
+    def __init__(self, round, train_idx, test_idx, init_L, init_U, initial_point=None, saving_path=None,
                  check_flag=True, verbose=True, print_interval=1):
         """When init this class,
         should store the basic info of this active learning info,
@@ -92,8 +93,8 @@ class StateIO:
         self.round = round
         self.train_idx = copy.copy(train_idx)
         self.test_idx = copy.copy(test_idx)
-        self.init_U = copy.deepcopy(init_U)
-        self.init_L = copy.deepcopy(init_L)
+        self.init_U = IndexCollection(init_U)
+        self.init_L = IndexCollection(init_L)
         self.initial_point = initial_point
         self.batch_size = 0
         if saving_path is not None:
@@ -168,17 +169,6 @@ class StateIO:
     def add_state(self, state):
         assert (isinstance(state, experiment_saver.state.State))
         self.__state_list.append(copy.deepcopy(state))
-        # if self.__check_flag:
-        #     res, err_st, err_ind = self.check_select_index()
-        #     if res == -1:
-        #         warnings.warn(
-        #             'Checking validity fails, there is a queried instance not in set_U in '
-        #             'State:%d, index:%s.' % (err_st, str(err_ind)),
-        #             category=ValidityWarning)
-        #     if res == -2:
-        #         warnings.warn('Checking validity fails, there are instances already queried '
-        #                       'in previous iteration in State:%d, index:%s.' % (err_st, str(err_ind)),
-        #                       category=ValidityWarning)
         self.__update_info()
 
         if self.__verbose and len(self) % self.__print_interval == 0:
@@ -191,40 +181,6 @@ class StateIO:
 
     def get_state(self, index):
         return copy.deepcopy(self.__state_list[index])
-
-    # def check_select_index(self):
-    #     """
-    #     check:
-    #     - Q has no repeating elements
-    #     - Q in U
-    #     Returns
-    #     -------
-    #     result: int
-    #         check result
-    #         - if -1 is returned, there is a queried instance not in U
-    #         - if -2 is returned, there are repeated instances in Q
-    #         - if 1 is returned, CHECK OK
-    #
-    #     state_index: int
-    #         the state index when checking fails (start from 0)
-    #         if CHECK OK, None is returned.
-    #
-    #     select_index: object
-    #         the select_index when checking fails.
-    #         if CHECK OK, None is returned.
-    #     """
-    #     repeat_dict = dict()
-    #     ind = -1
-    #     for st in self.__state_list:
-    #         ind += 1
-    #         for instance in st.get_value('select_index'):
-    #             if instance not in self.init_U:
-    #                 return -1, ind, instance
-    #             if instance not in repeat_dict.keys():
-    #                 repeat_dict[instance] = 1
-    #             else:
-    #                 return -2, ind, instance
-    #     return 1, None, None
 
     def check_batch_size(self):
         """
@@ -261,11 +217,17 @@ class StateIO:
 
         Returns
         -------
-        Ucollection: Indexcollection
-            Unlabel index collection in iteration before querying.
+        train_idx: array-like
+            index of training set, shape like [n_training_samples]
 
-        Lcollection: Indexcollection
-            Label index collection in iteration before querying.
+        test_idx: array-like
+            index of testing set, shape like [n_testing_samples]
+
+        label_idx: array-like
+            index of labeling set, shape like [n_labeling_samples]
+
+        unlabel_idx: array-like
+            index of unlabeling set, shape like [n_unlabeling_samples]
         """
         if iteration is None:
             iteration = len(self.__state_list)
@@ -276,12 +238,12 @@ class StateIO:
             work_U.difference_update(state.get_value('select_index'))
             work_L.update(state.get_value('select_index'))
         self.__state_list = self.__state_list[0:iteration - 1]
-        return copy.copy(self.train_idx), copy.copy(self.test_idx), copy.deepcopy(work_U), copy.deepcopy(work_L)
+        return copy.copy(self.train_idx), copy.copy(self.test_idx), copy.deepcopy(work_L), copy.deepcopy(work_U)
 
     def get_workspace(self, iteration=None):
         """
         get workspace of given iteration.
-        For example, if 1 is given, The State after first query will be returned.
+        For example, if 0 is given, The State after first query will be returned.
 
         Parameters
         ----------
@@ -290,11 +252,17 @@ class StateIO:
 
         Returns
         -------
-        Ucollection: Indexcollection
-            Unlabel index collection in iteration.
+        train_idx: array-like
+            index of training set, shape like [n_training_samples]
 
-        Lcollection: Indexcollection
-            Label index collection in iteration.
+        test_idx: array-like
+            index of testing set, shape like [n_testing_samples]
+
+        label_idx: array-like
+            index of labeling set, shape like [n_labeling_samples]
+
+        unlabel_idx: array-like
+            index of unlabeling set, shape like [n_unlabeling_samples]
         """
         if iteration is None:
             iteration = len(self.__state_list)
@@ -304,7 +272,7 @@ class StateIO:
             state = self.__state_list[i]
             work_U.difference_update(state.get_value('select_index'))
             work_L.update(state.get_value('select_index'))
-        return copy.copy(self.train_idx), copy.copy(self.test_idx), copy.deepcopy(work_U), copy.deepcopy(work_L)
+        return copy.copy(self.train_idx), copy.copy(self.test_idx), copy.deepcopy(work_L), copy.deepcopy(work_U)
 
     def get_current_progress(self):
         return len(self.__state_list)
@@ -347,11 +315,6 @@ class StateIO:
             self.cost_inall += np.sum(state.get_value('cost'))
         self._numqdata += len(state.get_value('select_index'))
 
-    @property
-    def queried_percentage(self):
-        """return the queried percentage of unlabeled data"""
-        return 100 * self._numqdata / len(self.init_U)
-
     def __repr__(self):
         numqdata = self._numqdata
         cost = self.cost_inall
@@ -361,7 +324,7 @@ class StateIO:
         tb.add_column('initially labeled data', [
             " %d (%.2f%% of all)" % (len(self.init_L), 100 * len(self.init_L) / (len(self.init_L) + len(self.init_U)))])
         tb.add_column('number of queries', [len(self.__state_list)])
-        tb.add_column('queried data', ["%d (%.2f%% of unlabeled data)" % (numqdata, self.queried_percentage)])
+        # tb.add_column('queried data', ["%d (%.2f%% of unlabeled data)" % (numqdata, self.queried_percentage)])
         tb.add_column('cost', [cost])
         tb.add_column('saving path', [self.saving_path])
         return str(tb)
@@ -370,6 +333,71 @@ class StateIO:
         tb = self.__repr__()
         return tb.splitlines()[1]
 
+# class StateIO_all_labels(StateIO):
+#     """StateIO for all labels querying"""
+#     def add_state(self, state):
+#         assert (isinstance(state, experiment_saver.state.State))
+#         self.__state_list.append(copy.deepcopy(state))
+#         if self.__check_flag:
+#             res, err_st, err_ind = self.check_select_index()
+#             if res == -1:
+#                 warnings.warn(
+#                     'Checking validity fails, there is a queried instance not in set_U in '
+#                     'State:%d, index:%s.' % (err_st, str(err_ind)),
+#                     category=ValidityWarning)
+#             if res == -2:
+#                 warnings.warn('Checking validity fails, there are instances already queried '
+#                               'in previous iteration in State:%d, index:%s.' % (err_st, str(err_ind)),
+#                               category=ValidityWarning)
+#         self.__update_info()
+#
+#
+#         if self.__verbose and len(self) % self.__print_interval == 0:
+#             if self._first_print:
+#                 print('\n' + self.__repr__(), end='')
+#                 self._first_print = False
+#             else:
+#                 print('\r' + self._refresh_dataline(), end='')
+#                 sys.stdout.flush()
+#
+#     def check_select_index(self):
+#         """
+#         check:
+#         - Q has no repeating elements
+#         - Q in U
+#         Returns
+#         -------
+#         result: int
+#             check result
+#             - if -1 is returned, there is a queried instance not in U
+#             - if -2 is returned, there are repeated instances in Q
+#             - if 1 is returned, CHECK OK
+#
+#         state_index: int
+#             the state index when checking fails (start from 0)
+#             if CHECK OK, None is returned.
+#
+#         select_index: object
+#             the select_index when checking fails.
+#             if CHECK OK, None is returned.
+#         """
+#         repeat_dict = dict()
+#         ind = -1
+#         for st in self.__state_list:
+#             ind += 1
+#             for instance in st.get_value('select_index'):
+#                 if instance not in self.init_U:
+#                     return -1, ind, instance
+#                 if instance not in repeat_dict.keys():
+#                     repeat_dict[instance] = 1
+#                 else:
+#                     return -2, ind, instance
+#         return 1, None, None
+#
+#     @property
+#     def queried_percentage(self):
+#         """return the queried percentage of unlabeled data"""
+#         return 100 * self._numqdata / len(self.init_U)
 
 if __name__ == '__main__':
     saver = StateIO()

@@ -57,7 +57,7 @@ class aceThreading:
         the path to save the result files.
     """
 
-    def __init__(self, examples, labels, train_idx, test_idx, unlabel_index, label_index, target_func,
+    def __init__(self, examples, labels, train_idx, test_idx, label_index, unlabel_index, target_func=None,
                  max_thread=None, refresh_interval=1, saving_path='.'):
         self.examples = examples
         self.labels = labels
@@ -94,15 +94,27 @@ class aceThreading:
         # for recovering the workspace
         self.alive_thread = [False] * self._round_num
 
+        self._target_func = None
+        if target_func is not None:
+            self.set_target_function(target_func)
+
+    def set_target_function(self, target_function):
+        """set the active learning main loop function for paralleling.
+
+        Parameters
+        ----------
+        target_function: function
+        """
         # check target function validity
-        argname = inspect.getfullargspec(target_func)[0]
+        argname = inspect.getfullargspec(target_function)[0]
         for name1 in ['round', 'train_id', 'test_id', 'Ucollection', 'Lcollection', 'saver', 'examples', 'labels',
                       'global_parameters']:
             if name1 not in argname:
                 raise NameError(
                     "the parameters of target_func must be (round, train_id, test_id, "
                     "Ucollection, Lcollection, saver, examples, labels, global_parameters)")
-        self._target_func = target_func
+        self._target_func = target_function
+
 
     def start_all_threads(self, global_parameters=None):
         """Start multi-threading.
@@ -122,6 +134,8 @@ class aceThreading:
         global_parameters: dict, optional (default=None)
             the additional variables to implement user-defined query-strategy.
         """
+        if self._target_func is None:
+            raise Exception("Function for paralleling is not given, use set_target_function() first.")
         self.__init_threads(global_parameters)
         # start thread
         self.__start_all_threads()
