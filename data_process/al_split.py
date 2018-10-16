@@ -7,265 +7,22 @@ Accept not only datamat, but also shape/list of instance name (for image dataset
 # License: BSD 3 clause
 
 from __future__ import division
-import numpy as np
-import copy
+
 import os
 
-from utils.query_type import check_query_type
-from utils.tools import randperm
+import numpy as np
+from sklearn.utils.multiclass import type_of_target
 from sklearn.utils.validation import check_array
-from sklearn.utils.validation import check_X_y
-from sklearn.svm import SVC
-from sklearn.utils.multiclass import unique_labels, is_multilabel, check_classification_targets, type_of_target
-from utils.ace_warnings import *
-from utils.al_collections import IndexCollection, MultiLabelIndexCollection
-from oracle.oracle import Oracle, OracleQueryMultiLabel
-from query_strategy.query_strategy import QueryInstanceUncertainty, QueryRandom
-from experiment_saver.state_io import StateIO
+
+from utils.query_type import check_query_type
 from utils.tools import check_matrix
-from utils.knowledge_db import MatrixKnowledgeDB, ElementKnowledgeDB
-
-
-class ExperimentSetting:
-    """Experiment Manager is a tool class which initializes the active learning
-    elements according to the setting in order to reduce the error and improve
-    the usability.
-
-    Elements of active learning experiments includes:
-    1. Split data set and return the initialized container
-    2. Oracle
-    3. Intermediate results saver
-    4. Classical query methods
-    5. Stopping criteria
-
-    Parameters
-    ----------
-    y: array-like
-        labels of given data [n_samples, n_labels] or [n_samples]
-
-    X: array-like, optional
-        data matrix with [n_samples, n_features]
-
-    instance_indexes: array-like, optional (default=None)
-        indexes of instances, it should be one-to-one correspondence of
-        X, if not provided, it will be generated automatically for each
-        xi started from 0.
-        It also can be a list contains names of instances, used for image datasets.
-        The split will only depend on the indexes if X is not provided.
-
-    model: object, optional (default=SVC)
-        The baseline model for evaluating the active learning strategy.
-
-    query_type: str, optional (default='AllLabels')
-        active learning settings. It will determine how to split data.
-
-    test_ratio: float, optional (default=0.3)
-        ratio of test set
-
-    initial_label_rate: float, optional (default=0.05)
-        ratio of initial label set
-        e.g. initial_labelset*(1-test_ratio)*n_samples
-
-    split_count: int, optional (default=10)
-        random split data split_count times
-
-    all_class: bool, optional (default=True)
-        whether each split will contain at least one instance for each class.
-        If False, a totally random split will be performed.
-
-    partially_labeled: bool, optional (default=False)
-        Whether split the data as partially labeled in the multi-label setting.
-        If False, the labeled set is fully labeled, otherwise, only part of labels of each
-        instance will be labeled initialized.
-        Only available in multi-label setting.
-
-    performance: str, optional (default='Accuracy')
-        The performance index of the experiment.
-
-    saving_path: str, optional (default='.')
-        path to save current settings. if None is provided, then it will not
-        save the path
-
-
-    Attributes
-    ----------
-
-
-    Examples
-    ----------
-
-    """
-
-    def __init__(self, y, X=None, instance_indexes=None, model=SVC(),
-                 query_type='AllLabels', test_ratio=0.3, initial_label_rate=0.05,
-                 split_count=10, all_class=True, partially_labeled=False, performance='Accuracy', saving_path='.'):
-        if X is None and y is None and instance_indexes is None:
-            raise Exception("Must provide one of X, y or instance_indexes.")
-        self._index_len = None
-
-        # check and record parameters
-        self._y = check_array(y, ensure_2d=False, dtype=None)
-        self._index_len = len(self._y)
-        self._label_num = len(unique_labels(self._y))
-        ytype = type_of_target(y)
-        if ytype in ['multilabel-indicator', 'multilabel-sequences']:
-            self._target_type = 'multilabel'
-        else:
-            self._target_type = ytype
-        if X is None:
-            warnings.warn("Instances matrix or acceptable model is not given, The initial point can not "
-                          "be calculated automatically.", category=FunctionWarning)
-            self._instance_flag = False
-        else:
-            self._instance_flag = True
-            self._X = check_array(X, accept_sparse='csr', ensure_2d=True, order='C')
-            n_samples = self._X.shape[0]
-            if n_samples != self._index_len:
-                raise ValueError("Different length of instances and labels found.")
-            else:
-                self._index_len = n_samples
-        if instance_indexes is None:
-            self._indexes = [i for i in range(self._index_len)]
-        else:
-            if len(instance_indexes) != self._index_len:
-                raise ValueError("Length of given instance_indexes do not accord the data set.")
-            self._indexes = copy.copy(instance_indexes)
-        # check if the model is acceptable
-        if not (hasattr(model, 'fit') and hasattr(model, 'predict')):
-            warnings.warn("Instances matrix or acceptable model is not given, The initial point can not "
-                            "be calculated automatically.", category=FunctionWarning)
-            self._model_flag = False
-        else:
-            self._model_flag = True
-            self.model = model
-        # still in progress
-        if check_query_type(query_type):
-            self.query_type = query_type
-        else:
-            raise NotImplementedError("Query type %s is not implemented." % type)
-        self.saving_path = saving_path
-        self.split_count = split_count
-        self.test_ratio = test_ratio
-        self.initial_label_rate = initial_label_rate
-        # should support other query types in the future
-        if self._target_type != 'multilabel':
-            self.train_idx, self.test_idx, self.unlabel_idx, self.label_idx = split(
-                X=self._X if self._instance_flag else None,
-                y=self._y if self._label_flag else None,
-                query_type=self.query_type, test_ratio=self.test_ratio,
-                initial_label_rate=self.initial_label_rate,
-                split_count=self.split_count,
-                instance_indexes=self._indexes,
-                all_class=all_class)
-        else:
-            self.train_idx, self.test_idx, self.unlabel_idx, self.label_idx = split_multi_label(
-                y=self._y,
-                test_ratio=self.test_ratio,
-                initial_label_rate=self.initial_label_rate,
-                split_count=self.split_count,
-                all_class=all_class,
-                partially_labeled=partially_labeled
-            )
-        self.save_settings(saving_path)
-
-    def get_split(self, round=None):
-        if round is not None:
-            assert (0 <= round < self.split_count)
-            if self._target_type != 'multilabel':
-                return copy.copy(self.train_idx[round]), copy.copy(self.test_idx[round]), IndexCollection(
-                    self.unlabel_idx[round]), IndexCollection(self.label_idx[round])
-            else:
-                return copy.copy(self.train_idx[round]), copy.copy(self.test_idx[round]), MultiLabelIndexCollection(
-                    self.unlabel_idx[round], self._label_num), MultiLabelIndexCollection(self.label_idx[round],
-                                                                                         self._label_num)
-        else:
-            return copy.deepcopy(self.train_idx), copy.deepcopy(self.test_idx), self.unlabel_idx, self.label_idx
-
-    def get_clean_oracle(self):
-        ytype = type_of_target(self._y)
-        if ytype in ['multilabel-indicator', 'multilabel-sequences']:
-            return OracleQueryMultiLabel(self._y)
-        elif ytype in ['binary', 'multiclass']:
-            return Oracle(self._y)
-
-    def get_saver(self, round):
-        assert (0 <= round < self.split_count)
-        train_id, test_id, Ucollection, Lcollection = self.get_split(round)
-        if self._instance_flag and self._model_flag:
-            # performance is not implemented yet.
-            # return StateIO(round, train_id, test_id, Ucollection, Lcollection, initial_point=accuracy)
-            return StateIO(round, train_id, test_id, Ucollection, Lcollection)
-        else:
-            return StateIO(round, train_id, test_id, Ucollection, Lcollection)
-
-    def get_knowledge_db(self, round):
-        assert (0 <= round < self.split_count)
-        train_id, test_id, Ucollection, Lcollection = self.get_split(round)
-        if self._target_type != 'multilabel':
-            return MatrixKnowledgeDB(labels=self._y[Lcollection.index], examples=self._X[Lcollection.index, :],
-                                     indexes=Lcollection.index)
-        else:
-            raise NotImplementedError("Knowledge DB for multi label is not implemented yet.")
-
-    def uncertainty_selection(self, measure='entropy', scenario='pool'):
-        return QueryInstanceUncertainty(X=self._X, y=self._y, measure=measure, scenario=scenario)
-
-    def random_selection(self):
-        return QueryRandom()
-
-    def get_model(self):
-        return self.model
-
-    def save_settings(self, saving_path):
-        """Save the experiment settings to file for auditting or loading for other methods.
-
-        Parameters
-        ----------
-        saving_path: str
-            path to save the settings. If a dir is provided, it will generate a file called
-            'al_settings.pkl' for saving.
-
-        """
-        if saving_path is None:
-            return
-        else:
-            if not isinstance(saving_path, str):
-                raise TypeError("A string is expected, but received: %s" % str(type(saving_path)))
-        import pickle
-        saving_path = os.path.abspath(saving_path)
-        if os.path.isdir(saving_path):
-            f = open(os.path.join(saving_path, 'al_settings.pkl'), 'wb')
-        else:
-            f = open(os.path.abspath(saving_path), 'wb')
-        pickle.dump(self, f)
-        f.close()
-
-    @classmethod
-    def load_settings(cls, path):
-        """Loading ExperimentSetting object from path.
-
-        Parameters
-        ----------
-        path: str
-            Path to a specific file, not a dir.
-
-        Returns
-        -------
-        setting: ExperimentSetting
-            Object of ExperimentSetting.
-        """
-        if not isinstance(path, str):
-            raise TypeError("A string is expected, but received: %s" % str(type(path)))
-        import pickle
-        f = open(os.path.abspath(path), 'rb')
-        setting_from_file = pickle.load(f)
-        f.close()
-        return setting_from_file
+from utils.tools import randperm
 
 
 def split(X=None, y=None, instance_indexes=None, query_type=None, test_ratio=0.3, initial_label_rate=0.05,
           split_count=10, all_class=True, saving_path='.'):
     """Split given data.
+    provide one of X, y or instance_indexes to execute the split.
 
     Parameters
     ----------
@@ -298,20 +55,21 @@ def split(X=None, y=None, instance_indexes=None, query_type=None, test_ratio=0.3
         If False, a totally random split will be performed.
 
     saving_path: str, optional (default='.')
+        Giving None to disable saving.
 
     Returns
     -------
     train_idx: array-like
-        index of training set, shape like [n_split_count, n_training_samples]
+        index of training set, shape like [n_split_count, n_training_indexex]
 
     test_idx: array-like
-        index of testing set, shape like [n_split_count, n_testing_samples]
+        index of testing set, shape like [n_split_count, n_testing_indexex]
 
     label_idx: array-like
-        index of labeling set, shape like [n_split_count, n_labeling_samples]
+        index of labeling set, shape like [n_split_count, n_labeling_indexex]
 
     unlabel_idx: array-like
-        index of unlabeling set, shape like [n_split_count, n_unlabeling_samples]
+        index of unlabeling set, shape like [n_split_count, n_unlabeling_indexex]
     """
     # check parameters
     if X is None and y is None and instance_indexes is None:
@@ -388,12 +146,13 @@ def split(X=None, y=None, instance_indexes=None, query_type=None, test_ratio=0.3
 
     split_save(train_idx=train_idx, test_idx=test_idx, label_idx=label_idx,
                unlabel_idx=unlabel_idx, path=saving_path)
-    return train_idx, test_idx, unlabel_idx, label_idx
+    return train_idx, test_idx, label_idx, unlabel_idx
 
 
 def split_multi_label(y=None, label_shape=None, test_ratio=0.3, initial_label_rate=0.05,
                       split_count=10, all_class=True, partially_labeled=False, saving_path='.'):
     """Split given label matrix in multi label setting.
+    Giving one of y or label_shape to split the data.
 
     Parameters
     ----------
@@ -426,36 +185,37 @@ def split_multi_label(y=None, label_shape=None, test_ratio=0.3, initial_label_ra
         Only available in multi-label setting.
 
     saving_path: str, optional (default='.')
+        Giving None to disable saving.
 
     Returns
     -------
     train_idx: array-like
-        index of training set, shape like [n_split_count, n_training_samples]
+        index of training set, shape like [n_split_count, n_training_indexex]
 
     test_idx: array-like
-        index of testing set, shape like [n_split_count, n_testing_samples]
+        index of testing set, shape like [n_split_count, n_testing_indexex]
 
     label_idx: array-like
-        index of labeling set, shape like [n_split_count, n_labeling_samples]
+        index of labeling set, shape like [n_split_count, n_labeling_indexex]
 
     unlabel_idx: array-like
-        index of unlabeling set, shape like [n_split_count, n_unlabeling_samples]
+        index of unlabeling set, shape like [n_split_count, n_unlabeling_indexex]
 
     """
 
     # check parameters
     if y is None and label_shape is None:
-        raise Exception("Must provide one of y or label_shape.")
+        raise Exception("Must provide one of data matrix or matrix_shape.")
     data_shape = None
     if y is not None:
         y = check_matrix(y)
         ytype = type_of_target(y)
         if ytype not in ['multilabel-indicator', 'multilabel-sequences']:
-            raise ValueError("y must be a 2D array with the shape like [n_samples, n_labels]")
+            raise ValueError("data matrix must be a 2D array with the shape like [n_samples, n_labels]")
         data_shape = y.shape
     if label_shape is not None:
         if not isinstance(label_shape, tuple) and len(label_shape) == 2:
-            raise TypeError("the shape of y, should be a tuple with 2 elements."
+            raise TypeError("the shape of data matrix should be a tuple with 2 elements."
                             "The first one is the number of instances, and the other is the"
                             "number of labels.")
         data_shape = label_shape
@@ -523,8 +283,22 @@ def split_multi_label(y=None, label_shape=None, test_ratio=0.3, initial_label_ra
             unlabel_idx.append([(i,) for i in tp_train[cutpoint:]])
     split_save(train_idx=train_idx, test_idx=test_idx, label_idx=label_idx,
                unlabel_idx=unlabel_idx, path=saving_path)
-    return train_idx, test_idx, unlabel_idx, label_idx
+    return train_idx, test_idx, label_idx, unlabel_idx
 
+
+def split_features(feature_matrix=None, feature_matrix_shape=None, test_ratio=0.3, missing_rate=0.5,
+                      split_count=10, all_features=True, saving_path='.'):
+    """
+    Split given feature matrix in feature querying setting.
+    Giving one of feature_matrix or feature_matrix_shape to split the data.
+
+    The matrix will be split randomly in split_count times, the testing set
+    is the set of instances with complete feature vectors. The training set
+    has missing feature with the rate of missing_rate.
+    """
+    return split_multi_label(y=feature_matrix, label_shape=feature_matrix_shape, test_ratio=test_ratio,
+                             initial_label_rate=1-missing_rate, split_count=split_count,
+                             all_class=all_features, partially_labeled=True, saving_path=saving_path)
 
 def split_load(path):
     """Load split from path.
@@ -532,21 +306,38 @@ def split_load(path):
     Parameters
     ----------
     path: str
-        Path to a specific file, not a dir.
+        Path to a dir which contains train_idx.txt, test_idx.txt, label_idx.txt, unlabel_idx.txt.
 
     Returns
     -------
-    setting: ExperimentSetting
-        Object of ExperimentSetting.
+    train_idx: array-like
+        index of training set, shape like [n_split_count, n_training_samples]
+
+    test_idx: array-like
+        index of testing set, shape like [n_split_count, n_testing_samples]
+
+    label_idx: array-like
+        index of labeling set, shape like [n_split_count, n_labeling_samples]
+
+    unlabel_idx: array-like
+        index of unlabeling set, shape like [n_split_count, n_unlabeling_samples]
     """
     if not isinstance(path, str):
         raise TypeError("A string is expected, but received: %s" % str(type(path)))
-    import pickle
-    f = open(os.path.abspath(path), 'rb')
-    split_setting = pickle.load(f)
-    f.close()
-    # return train_idx, test_idx, label_idx, unlabel_idx
-    return split_setting
+    saving_path = os.path.abspath(path)
+    if not os.path.isdir(saving_path):
+        raise Exception("A path to a directory is expected.")
+
+    ret_arr = []
+    for fname in ['train_idx.txt', 'test_idx.txt', 'label_idx.txt', 'unlabel_idx.txt']:
+        if not os.path.exists(os.path.join(saving_path, fname)):
+            if os.path.exists(os.path.join(saving_path, fname.split()[0] + '.npy')):
+                ret_arr.append(np.load(os.path.join(saving_path, fname.split()[0] + '.npy')))
+            else:
+                ret_arr.append(None)
+        else:
+            ret_arr.append(np.loadtxt(os.path.join(saving_path, fname)))
+    return ret_arr[0], ret_arr[1], ret_arr[2], ret_arr[3]
 
 
 def split_save(train_idx, test_idx, label_idx, unlabel_idx, path):
@@ -555,8 +346,8 @@ def split_save(train_idx, test_idx, label_idx, unlabel_idx, path):
     Parameters
     ----------
     saving_path: str
-        path to save the settings. If a dir is provided, it will generate a file called
-        'al_split.pkl' for saving.
+        path to save the settings. If a dir is not provided, it will generate a folder called
+        'acepy_split' for saving.
 
     """
     if path is None:
@@ -564,27 +355,37 @@ def split_save(train_idx, test_idx, label_idx, unlabel_idx, path):
     else:
         if not isinstance(path, str):
             raise TypeError("A string is expected, but received: %s" % str(type(path)))
-    import pickle
+
     saving_path = os.path.abspath(path)
     if os.path.isdir(saving_path):
-        f = open(os.path.join(saving_path, 'al_split.pkl'), 'wb')
+        np.savetxt(os.path.join(saving_path, 'train_idx.txt'), train_idx)
+        np.savetxt(os.path.join(saving_path, 'test_idx.txt'), test_idx)
+        if len(np.shape(label_idx)) == 2:
+            np.savetxt(os.path.join(saving_path, 'label_idx.txt'), label_idx)
+            np.savetxt(os.path.join(saving_path, 'unlabel_idx.txt'), unlabel_idx)
+        else:
+            np.save(os.path.join(saving_path, 'label_idx.npy'), label_idx)
+            np.save(os.path.join(saving_path, 'unlabel_idx.npy'), unlabel_idx)
     else:
-        f = open(os.path.abspath(saving_path), 'wb')
-    pickle.dump((train_idx, test_idx, label_idx, unlabel_idx), f)
-    f.close()
+        raise Exception("A path to a directory is expected.")
 
 
 if __name__ == '__main__':
-    train_idx, test_idx, unlabel_idx, label_idx = split(X=np.random.random((10, 10)), y=np.random.randn(10, 10),
+    train_idx, test_idx, label_idx, unlabel_idx = split(X=np.random.random((10, 10)), y=np.random.randn(10, 10),
                                                         all_class=False)
     print(train_idx)
     print(test_idx)
     print(label_idx)
     print(unlabel_idx)
-    train_idx, test_idx, unlabel_idx, label_idx = split_multi_label(y=np.random.randint(0, 2, 800).reshape(100, -1),
+    train_idx, test_idx, label_idx, unlabel_idx = split_multi_label(y=np.random.randint(0, 2, 800).reshape(100, -1),
                                                                     initial_label_rate=0.15, partially_labeled=True)
     print(train_idx)
     print(test_idx)
     print(label_idx)
     print(unlabel_idx)
-    pass
+    # split_save(train_idx, test_idx, label_idx, unlabel_idx, '.')
+    # train_idx, test_idx, label_idx, unlabel_idx = split_load('.')
+    # print(train_idx)
+    # print(test_idx)
+    # print(label_idx)
+    # print(unlabel_idx)

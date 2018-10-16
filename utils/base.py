@@ -9,6 +9,7 @@ ABC for AL
 from abc import ABCMeta, abstractmethod
 import collections.abc
 import copy
+from sklearn.utils.validation import check_X_y
 
 
 class BaseQueryStrategy(metaclass=ABCMeta):
@@ -18,14 +19,33 @@ class BaseQueryStrategy(metaclass=ABCMeta):
     implement query function with data matrix
     should return element in unlabel_index set
     """
+    def __init__(self, X=None, y=None, **kwargs):
+        if X is not None and y is not None:
+            self.X, self.y = check_X_y(X, y, accept_sparse='csc', multi_output=True)
+        else:
+            self.X = X
+            self.y = y
 
     @abstractmethod
-    def select(self, *args):
+    def select(self, label_index, unlabel_index, **kwargs):
         """Select instance to query
 
         Returns
         -------
         queried keys, key should be in unlabel_index
+        """
+        pass
+
+    def select_by_prediction_mat(self, unlabel_index, predict, **kwargs):
+        """select in a model-independent way.
+
+        Parameters
+        ----------
+        prediction_mat
+
+        Returns
+        -------
+
         """
         pass
 

@@ -11,6 +11,7 @@ labeled set for training
 from __future__ import division
 
 import numpy as np
+import prettytable as pt
 from sklearn.utils.validation import check_array
 
 from utils.ace_warnings import *
@@ -65,6 +66,7 @@ class ElementKnowledgeDB(BaseDB):
         self.cost_inall = 0
         self.cost_arr = []
         self.num_of_queries = 0
+        self.query_history = []
 
     def __len__(self):
         return self._index_len
@@ -90,7 +92,7 @@ class ElementKnowledgeDB(BaseDB):
         if self._instance_flag:
             if example is None:
                 raise Exception("This oracle has the instance information,"
-                                 "must provide example parameter when adding entry")
+                                "must provide example parameter when adding entry")
             self._exa2ind[example] = select_index
             self._ind2exa[select_index] = example
         self._ind2label[select_index] = label
@@ -166,6 +168,8 @@ class ElementKnowledgeDB(BaseDB):
                     self.add(labels[i], indexes[i], example=examples[i] if examples is not None else None,
                              cost=cost[i] if cost is not None else None)
         self.num_of_queries += 1
+        self._update_query_history(labels, indexes, cost)
+        return self
 
     def retrieve_by_indexes(self, indexes):
         """retrieve by indexes
@@ -249,6 +253,22 @@ class ElementKnowledgeDB(BaseDB):
         self.cost_inall = 0
         self.cost_arr = []
         self.num_of_queries = 0
+        self.query_history.clear()
+
+    def _update_query_history(self, labels, indexes, cost):
+        """record the query history"""
+        self.query_history.append(((labels, cost), indexes))
+
+    def full_history(self):
+        """return full version of query history"""
+        tb = pt.PrettyTable()
+        # tb.set_style(pt.MSWORD_FRIENDLY)
+        for query_ind in range(len(self.query_history)):
+            query_result = self.query_history[query_ind]
+            tb.add_column(str(query_ind), "query_index:%s\nresponse:%s\ncost:%s" % (
+                          str(query_result[1]), str(query_result[0][0]), str(query_result[0][1])))
+        tb.add_column('in all', "number_of_queries:%s\ncost:%s"%(str(len(self.query_history)), str(self.cost_inall)))
+        return str(tb)
 
 
 # this class can only deal with the query-all-labels setting
@@ -304,6 +324,7 @@ class MatrixKnowledgeDB(BaseDB):
         self.cost_inall = 0
         self.cost_arr = []
         self.num_of_queries = 0
+        self.query_history = []
 
     def __len__(self):
         return self._index_len
@@ -374,6 +395,7 @@ class MatrixKnowledgeDB(BaseDB):
                 self.add(labels[i], indexes[i], cost=cost[i],
                          example=examples[i] if examples is not None else None)
         self.num_of_queries += 1
+        self._update_query_history(labels, indexes, cost, examples)
         return self
 
     def discard(self, index=None, example=None):
@@ -484,6 +506,22 @@ class MatrixKnowledgeDB(BaseDB):
         self._X = None
         self._y = None
         self._indexes = None
+        self.query_history.clear()
+
+    def _update_query_history(self, labels, indexes, cost):
+        """record the query history"""
+        self.query_history.append(((labels, cost), indexes))
+
+    def full_history(self):
+        """return full version of query history"""
+        tb = pt.PrettyTable()
+        # tb.set_style(pt.MSWORD_FRIENDLY)
+        for query_ind in range(len(self.query_history)):
+            query_result = self.query_history[query_ind]
+            tb.add_column(str(query_ind), "query_index:%s\nresponse:%s\ncost:%s" % (
+                str(query_result[1]), str(query_result[0][0]), str(query_result[0][1])))
+        tb.add_column('in all', "number_of_queries:%s\ncost:%s" % (str(len(self.query_history)), str(self.cost_inall)))
+        return str(tb)
 
 # class MultiLabelKnowledgeDB(MatrixKnowledgeDB):
 #     """Using a sparse matrix to save the data

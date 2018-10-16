@@ -1,6 +1,10 @@
 """
-Class to store necessary information of
-an active learning experiment for analysis
+Class to encapsulate various tools
+and implement the main loop of active learning.
+
+To run the experiment with only one class,
+we have to impose some restrictions to make
+sure the robustness of the code.
 """
 # Authors: Ying-Peng Tang
 # License: BSD 3 clause
@@ -8,160 +12,414 @@ an active learning experiment for analysis
 import copy
 import os
 import pickle
-import experiment_saver
+
+from sklearn.svm import SVC
+from sklearn.utils import check_array
+from sklearn.utils.multiclass import unique_labels, type_of_target
+
+from data_process.al_split import split, split_multi_label, split_features
+from experiment_saver.state_io import StateIO
+from oracle.oracle import OracleQueryMultiLabel, Oracle, OracleQueryFeatures
+from query_strategy.query_strategy import QueryInstanceUncertainty, QueryRandom
 from utils.ace_warnings import *
+from utils.al_collections import IndexCollection, MultiLabelIndexCollection, FeatureIndexCollection
+from utils.knowledge_db import MatrixKnowledgeDB, ElementKnowledgeDB
+from utils.query_type import check_query_type
+from utils.tools import get_labelmatrix_in_multilabel
+from utils.stopping_criteria import StoppingCriteria
+from analyser.experiment_analyser import ExperimentAnalyser
+from utils.multi_thread import aceThreading
 
 
-class AlExperiment:
+class ToolBox:
+    """Tool box is a tool class which initializes the active learning
+    elements according to the setting in order to reduce the error and improve
+    the usability.
+
+    In initializing, necessary information to initialize various tool classes
+    must be given. You can set the split setting in initializing or generate a new
+    split by ToolBox.split.
+
+    Note that, using ToolBox to initialize other tools is optional, you may use
+    each modules independently.
+
+    Parameters
+    ----------
+    y: array-like
+        labels of given data [n_samples, n_labels] or [n_samples]
+
+    X: array-like, optional (default=None)
+        data matrix with [n_samples, n_features].
+
+    instance_indexes: array-like, optional (default=None)
+        indexes of instances, it should be one-to-one correspondence of
+        X, if not provided, it will be generated automatically for each
+        x_i started from 0.
+        It also can be a list contains names of instances, used for image datasets.
+        The split will only depend on the indexes if X is not provided.
+
+    query_type: str, optional (default='AllLabels')
+        active learning settings. It will determine how to split data.
+        should be one of ['AllLabels', 'Partlabels', 'Features']:
+
+        AllLabels: query all labels of an selected instance.
+            Support scene: binary classification, multi-class classification, multi-label classification, regression
+
+        Partlabels: query part of labels of an instance.
+            Support scene: multi-label classification
+
+        Features: query part of features of an instance.
+            Support scene: missing features
+
+    saving_path: str, optional (default='.')
+        path to save current settings. if None is provided, then it will not
+        save the path
+
+    train_idx: array-like, optional (default=None)
+        index of training set, shape like [n_split_count, n_training_indexex]
+
+    test_idx: array-like, optional (default=None)
+        index of testing set, shape like [n_split_count, n_testing_indexex]
+
+    label_idx: array-like, optional (default=None)
+        index of labeling set, shape like [n_split_count, n_labeling_indexex]
+
+    unlabel_idx: array-like, optional (default=None)
+        index of unlabeling set, shape like [n_split_count, n_unlabeling_indexex]
+
+
+    Attributes
+    ----------
+
+
+    Examples
+    ----------
+
     """
-    Class to store necessary information of
-    an active learning experiment for analysis
-    """
 
-    def __init__(self, method_name, remark=None):
-        self.method_name = method_name
-        self.remark = remark
-        self.__results = list()
-
-    def add_fold(self, src):
-        """
-        Add one fold of active learning experiment.
-
-        Parameters
-        ----------
-        src: object or str
-            StateIO object or path to the intermediate results file.
-        """
-        if isinstance(src, experiment_saver.state_io.StateIO):
-            if not src.check_batch_size():
-                warnings.warn('Checking validity fails, different batch size is found.', category=ValidityWarning)
-            self.__add_fold_by_object(src)
-        elif isinstance(src, str):
-            self.__add_fold_from_file(src)
+    def __init__(self, y, X=None, instance_indexes=None,
+                 query_type='AllLabels', saving_path='.', **kwargs):
+        self._index_len = None
+        # check and record parameters
+        self._y = check_array(y, ensure_2d=False, dtype=None)
+        ytype = type_of_target(y)
+        if ytype in ['multilabel-indicator', 'multilabel-sequences']:
+            self._target_type = 'multilabel'
         else:
-            raise TypeError('StateIO object or str is expected, but received:%s' % str(type(src)),
-                            category=UnexpectedParameterWarning)
+            self._target_type = ytype
+        self._index_len = len(self._y)
+        self._label_space = unique_labels(self._y)
+        self._label_num = len(self._label_space)
 
-    def add_folds(self, folds):
-        """Add multiple folds.
+        self._instance_flag = False
+        if X is not None:
+            self._instance_flag = True
+            self._X = check_array(X, accept_sparse='csr', ensure_2d=True, order='C')
+            n_samples = self._X.shape[0]
+            if n_samples != self._index_len:
+                raise ValueError("Different length of instances and labels found.")
+            else:
+                self._index_len = n_samples
+
+        if instance_indexes is None:
+            self._indexes = [i for i in range(self._index_len)]
+        else:
+            if len(instance_indexes) != self._index_len:
+                raise ValueError("Length of given instance_indexes do not accord the data set.")
+            self._indexes = copy.copy(instance_indexes)
+
+        if check_query_type(query_type):
+            self.query_type = query_type
+            if self.query_type == 'Features' and not self._instance_flag:
+                raise Exception("In feature querying, feature matrix must be given.")
+        else:
+            raise NotImplementedError("Query type %s is not implemented." % type)
+
+        self._split = False
+        train_idx = kwargs.pop('train_idx', None)
+        test_idx = kwargs.pop('test_idx', None)
+        label_idx = kwargs.pop('label_idx', None)
+        unlabel_idx = kwargs.pop('unlabel_idx', None)
+        if train_idx is not None and test_idx is not None and label_idx is not None and unlabel_idx is not None:
+            if not (len(train_idx) == len(test_idx) == len(label_idx) == len(unlabel_idx)):
+                raise ValueError("train_idx, test_idx, label_idx, unlabel_idx "
+                                 "should have the same split count (length)")
+            self._split = True
+            self.train_idx = train_idx
+            self.test_idx = test_idx
+            self.label_idx = label_idx
+            self.unlabel_idx = unlabel_idx
+            self.split_count = len(train_idx)
+
+        self._saving_path = saving_path
+        if saving_path is not None:
+            if not isinstance(self._saving_path, str):
+                raise TypeError("A string is expected, but received: %s" % str(type(self._saving_path)))
+            self.save_settings(saving_path)
+
+    def split_AL(self, test_ratio=0.3, initial_label_rate=0.05,
+                 split_count=10, all_class=True):
+        """split dataset for active learning experiment.
+        The labeled set for multi-label setting is fully labeled.
 
         Parameters
         ----------
-        folds: list
-            The list contains n StateIO objects.
-        """
-        for item in folds:
-            self.add_fold(item)
+        test_ratio: float, optional (default=0.3)
+            ratio of test set
 
-    def __add_fold_by_object(self, result):
+        initial_label_rate: float, optional (default=0.05)
+            ratio of initial label set or the existed features (missing rate = 1-initial_label_rate)
+            e.g. initial_labelset*(1-test_ratio)*n_samples
+
+        split_count: int, optional (default=10)
+            random split data split_count times
+
+        all_class: bool, optional (default=True)
+            whether each split will contain at least one instance for each class.
+            If False, a totally random split will be performed.
+
+        Returns
+        -------
+        train_idx: array-like
+            index of training set, shape like [n_split_count, n_training_indexex]
+
+        test_idx: array-like
+            index of testing set, shape like [n_split_count, n_testing_indexex]
+
+        label_idx: array-like
+            index of labeling set, shape like [n_split_count, n_labeling_indexex]
+
+        unlabel_idx: array-like
+            index of unlabeling set, shape like [n_split_count, n_unlabeling_indexex]
+
         """
-        Add one fold of active learning experiment
+        # should support other query types in the future
+        self.split_count = split_count
+        if self._target_type != 'Features':
+            if self._target_type == 'multilabel':
+                self.train_idx, self.test_idx, self.label_idx, self.unlabel_idx = split(
+                    X=self._X if self._instance_flag else None,
+                    y=self._y,
+                    query_type=self.query_type, test_ratio=test_ratio,
+                    initial_label_rate=initial_label_rate,
+                    split_count=split_count,
+                    instance_indexes=self._indexes,
+                    all_class=all_class)
+            else:
+                self.train_idx, self.test_idx, self.label_idx, self.unlabel_idx = split_multi_label(
+                    y=self._y,
+                    label_shape=self._y.shape,
+                    test_ratio=test_ratio,
+                    initial_label_rate=initial_label_rate,
+                    split_count=split_count,
+                    all_class=all_class,
+                    partially_labeled=False)
+        else:
+            self.train_idx, self.test_idx, self.label_idx, self.unlabel_idx = split_features(
+                feature_matrix=self._X,
+                test_ratio=test_ratio,
+                missing_rate=1 - initial_label_rate,
+                split_count=split_count,
+                all_features=all_class
+            )
+        self._split = True
+        return self.train_idx, self.test_idx, self.label_idx, self.unlabel_idx
+
+    def get_split(self, round=None):
+        if not self._split:
+            raise Exception("The split setting is unknown, use split_AL() first.")
+        if round is not None:
+            assert (0 <= round < self.split_count)
+            if self.query_type == 'Features':
+                return copy.copy(self.train_idx[round]), copy.copy(self.test_idx[round]), FeatureIndexCollection(
+                    self.label_idx[round], self._X.shape[1]), FeatureIndexCollection(self.unlabel_idx[round],
+                                                                                     self._X.shape[1])
+            else:
+                if self._target_type == 'multilabel':
+                    return copy.copy(self.train_idx[round]), copy.copy(self.test_idx[round]), MultiLabelIndexCollection(
+                        self.label_idx[round], self._label_num), MultiLabelIndexCollection(self.unlabel_idx[round],
+                                                                                           self._label_num)
+                else:
+                    return copy.copy(self.train_idx[round]), copy.copy(self.test_idx[round]), IndexCollection(
+                        self.label_idx[round]), IndexCollection(self.unlabel_idx[round])
+        else:
+            return copy.deepcopy(self.train_idx), copy.deepcopy(self.test_idx), \
+                   copy.deepcopy(self.label_idx), copy.deepcopy(self.unlabel_idx)
+
+    def get_clean_oracle(self):
+        if self.query_type == 'Features':
+            return OracleQueryFeatures(feature_mat=self._X)
+        elif self.query_type == 'AllLabels':
+            if self._target_type == 'multilabel':
+                return OracleQueryMultiLabel(self._y)
+            else:
+                return Oracle(self._y)
+
+    def get_saver(self, round):
+        assert (0 <= round < self.split_count)
+        train_id, test_id, Ucollection, Lcollection = self.get_split(round)
+        return StateIO(round, train_id, test_id, Ucollection, Lcollection)
+
+    def __get_knowledge_db(self, round):
+        assert (0 <= round < self.split_count)
+        train_id, test_id, Ucollection, Lcollection = self.get_split(round)
+        if self.query_type == 'AllLabels':
+            return MatrixKnowledgeDB(labels=self._y[Lcollection.index],
+                                     examples=self._X[Lcollection.index, :] if self._instance_flag else None,
+                                     indexes=Lcollection.index)
+        else:
+            raise NotImplemented("other query types for knowledge DB is not implemented yet.")
+
+    def get_query_strategy(self, strategy_name="random"):
+        """Return the query strategy object.
 
         Parameters
         ----------
-        result: utils.StateIO
-            object stored a complete fold of active learning experiment
-        """
-        self.__results.append(copy.deepcopy(result))
+        strategy_name: str, optional (default='random')
 
-    def __add_fold_from_file(self, path):
+        Returns
+        -------
+
         """
-        Add one fold of active learning experiment from file
+        if self.query_type != "AllLabels":
+            raise NotImplemented("Query strategy for other query types is not implemented yet.")
+
+    def get_multilabel_matrix_by_index(self, index, missing_value=0):
+        """Index multilabel matrix by index. It can have missing value (query example-label pairs),
+        The unknown elements will be set to missing_value
+
+        Parameters
+        ----------
+        index
+        missing_value
+
+        Returns
+        -------
+
+        """
+        if self._target_type != "multilabel":
+            raise Exception("This function is only available in multi label setting.")
+        return get_labelmatrix_in_multilabel(index=index, data_matrix=self._y, unknown_element=missing_value)
+
+    def get_default_model(self):
+        return SVC()
+
+    def get_stopping_criterion(self, stopping_criteria=None, value=None):
+        """Return example stopping criterion.
+
+        Parameters
+        __________
+        stopping_criteria: str, optional (default=None)
+            stopping criteria, must be one of: [None, 'num_of_queries', 'cost_limit', 'percent_of_unlabel', 'time_limit']
+
+            None: stop when no unlabeled samples available
+            'num_of_queries': stop when preset number of quiries is reached
+            'cost_limit': stop when cost reaches the limit.
+            'percent_of_unlabel': stop when specific percentage of unlabeled data pool is labeled.
+            'time_limit': stop when CPU time reaches the limit.
+        """
+        return StoppingCriteria(stopping_criteria=stopping_criteria, value=value)
+
+    def get_experiment_analyser(self):
+        """Return ExperimentAnalyser object"""
+        return ExperimentAnalyser()
+
+    def get_aceThreading(self, max_thread=None, refresh_interval=1, saving_path='.'):
+        """Return the multithreading tool class
+
+        Parameters
+        __________
+        max_thread: int, optional (default=None)
+            The max threads for running at the same time. If not provided, it will run all rounds simultaneously.
+
+        refresh_interval: float, optional (default=1.0)
+            how many seconds to refresh the current state output, default is 1.0.
+
+        saving_path: str, optional (default='.')
+            the path to save the result files.
+        """
+        if not self._instance_flag:
+            raise Exception("instance matrix is necessary for initializing aceThreading object.")
+        return aceThreading(examples=self._X, labels=self._y,
+                            train_idx=self.train_idx, test_idx=self.test_idx,
+                            label_index=self.label_idx,
+                            unlabel_index=self.unlabel_idx,
+                            refresh_interval=refresh_interval,
+                            max_thread=max_thread,
+                            saving_path=saving_path)
+
+    def save_settings(self):
+        """Save the experiment settings to file for auditting or loading for other methods."""
+        if self._saving_path is None:
+            return
+        saving_path = os.path.abspath(self._saving_path)
+        if os.path.isdir(saving_path):
+            f = open(os.path.join(saving_path, 'al_settings.pkl'), 'wb')
+        else:
+            f = open(os.path.abspath(saving_path), 'wb')
+        pickle.dump(self, f)
+        f.close()
+
+    def IndexCollection(self, array=None):
+        """Return an IndexCollection object initialized with array"""
+        return IndexCollection(array)
+
+    @classmethod
+    def load_settings(cls, path):
+        """Loading ExperimentSetting object from path.
 
         Parameters
         ----------
         path: str
-            path of result file.
+            Path to a specific file, not a dir.
+
+        Returns
+        -------
+        setting: ToolBox
+            Object of ExperimentSetting.
         """
+        if not isinstance(path, str):
+            raise TypeError("A string is expected, but received: %s" % str(type(path)))
+        import pickle
         f = open(os.path.abspath(path), 'rb')
-        result = pickle.load(f)
+        setting_from_file = pickle.load(f)
         f.close()
-        assert (isinstance(result, experiment_saver.StateIO))
-        if not result.check_batch_size():
-            warnings.warn('Checking validity fails, different batch size is found.',
-                          category=ValidityWarning)
-        self.__results.append(copy.deepcopy(result))
+        return setting_from_file
 
-    def check_experiments(self):
-        """
-        Check results stored in this object that:
-        1. whether all folds have the same length. If not, calc the shortest one
-        2. whether the batch size is the same.
-        3. calculate additional information.
 
-        Returns
-        -------
+class AlExperiment:
+    """AlExperiment is a  class to encapsulate various tools
+    and implement the main loop of active learning.
 
-        """
-        if self.check_batch_size and self.check_length:
-            return True
-        else:
-            return False
+    To run the experiment with only one class,
+    we have to impose some restrictions to make
+    sure the robustness of the code.
 
-    def check_batch_size(self):
-        """
-        if all queries have the same batch size.
+    Parameters
+    ----------
+    model: object
+        An model object which accord the scikit-learn api
 
-        Returns
-        -------
+    performance_metric: str, optional (default='accuracy')
+        The performance metric
+    """
 
-        """
-        bs = set()
-        for item in self.__results:
-            if not item.check_batch_size():
-                return False
-            else:
-                bs.add(item.batch_size)
-        if len(bs) == 1:
-            return True
-        else:
-            return False
+    def __init__(self, model=SVC(), performance_metric='accuracy', **kwargs):
+        pass
 
-    def check_length(self):
-        """
-        if all folds have the same numbers of query.
-
-        Returns
-        -------
-        bool
-        """
-        ls = set()
-        for item in self.__results:
-            ls.add(len(item))
-        if len(ls) == 1:
-            return True
-        else:
-            return False
-
-    def get_batch_size(self):
+    def set_query_strategy(self, strategy="Uncertainty", **kwargs):
         """
 
-        Returns
-        -------
-        -1 if not the same batch size
+        Parameters
+        ----------
+        strategy: {str, callable}, optional (default='Uncertainty')
+            The query strategy function.
+            Giving str to use a pre-defined strategy
+            Giving callable to use a user-defined strategy.
+
+        kwargs: dict, optional
+            The args used in user-defined strategy.
+            Note that, each parameters should be static.
+            The parameters will be fed to the callable object automatically.
         """
-        if self.check_batch_size:
-            return self.__results[0].batch_size
-        else:
-            return -1
-
-    def get_length(self):
-        ls = list()
-        for item in self.__results:
-            ls.append(len(item))
-        return min(ls)
-
-    def __len__(self):
-        return len(self.__results)
-
-    def __getitem__(self, item):
-        return self.__results.__getitem__(item)
-
-    def __contains__(self, other):
-        return other in self.__results
-
-    def __iter__(self):
-        return iter(self.__results)
-
-    def __repr__(self):
-        return
+        pass

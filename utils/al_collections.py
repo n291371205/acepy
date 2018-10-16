@@ -52,6 +52,10 @@ class IndexCollection(BaseCollection):
         data: collections.Iterable
         """
         if data is not None:
+            if isinstance(data, IndexCollection):
+                self._innercontainer = copy.deepcopy(data)
+                self._element_type = data.get_elementType()
+                return
             if not isinstance(data, (list, np.ndarray)):
                 data = [data]
             self._innercontainer = list(np.unique([i for i in data], axis=0))
@@ -227,6 +231,10 @@ class MultiLabelIndexCollection(IndexCollection):
             self._innercontainer.add(key)
         return self
 
+    def get_elementType(self):
+        """Return the type of the elements in the container."""
+        return self._element_type
+
     def discard(self, value):
         """Remove an element.  Do not raise an exception if absent."""
         assert (isinstance(value, tuple))
@@ -268,6 +276,9 @@ class MultiLabelIndexCollection(IndexCollection):
                 "A list or np.ndarray is expected if multiple indexes are "
                 "contained. Otherwise, a tuple should be provided")
         return self
+
+class FeatureIndexCollection(MultiLabelIndexCollection):
+    """container to store the indexes in feature querying scenario."""
 
 
 if __name__ == '__main__':

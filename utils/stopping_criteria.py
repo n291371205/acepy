@@ -9,9 +9,11 @@ Formal:
 5. the accuracy of a learner has reached a plateau
 6. the cost of acquiring new training data is greater than the cost of the errors made by the current model
 """
+
 from __future__ import division
 import numpy as np
 import time
+from experiment_saver.state_io import StateIO
 
 class StoppingCriteria:
     """class to implement stopping criteria.
@@ -46,8 +48,6 @@ class StoppingCriteria:
         self._stopping_criteria = stopping_criteria
         if isinstance(value, np.generic):
             value = np.asscalar(value)
-        if stopping_criteria is None:
-            self._is_stop = 1
 
         if stopping_criteria == 'num_of_queries':
             if not isinstance(value, int):
@@ -62,10 +62,8 @@ class StoppingCriteria:
         # collect information
         self._current_iter = 0
         self._accum_cost = 0
-        self._current_label = 0
-        self._current_unlabel = 0
-        self._unlabel_init = 0
-        self._label_init = 0
+        self._current_unlabel = 100
+        self._percent = 1.0
 
     def is_stop(self):
         if self._current_unlabel == 0:
@@ -81,7 +79,7 @@ class StoppingCriteria:
             else:
                 return False
         elif self._stopping_criteria == 'percent_of_unlabel':
-            if (self._current_label-self._label_init)/self._unlabel_init >= self.value:
+            if self._percent >= self.value:
                 return True
             else:
                 return False
@@ -92,5 +90,21 @@ class StoppingCriteria:
                 return False
         return False
 
-    def update_state(self):
-        pass
+    def update_information(self, saver):
+        """update value according to the specific criterion
+
+        Parameters
+        ----------
+        saver: StateIO
+            StateIO object
+        """
+        _,_,_, Uindex = saver.get_workspace()
+        _, _, _, ini_Uindex = saver.get_workspace(iteration=0)
+        self._current_unlabel = len(Uindex)
+        if self._stopping_criteria == 'num_of_queries':
+            self._current_iter = len(saver)
+        elif self._stopping_criteria == 'cost_limit':
+            self._accum_cost = saver.cost_inall
+        elif self._stopping_criteria == 'percent_of_unlabel':
+            self._percent = (len(ini_Uindex)-len(Uindex))/len(ini_Uindex)
+        return self

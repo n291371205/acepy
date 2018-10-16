@@ -10,3 +10,6 @@ abandoned_code.py
 *.doc
 *.docx
 *.pkl
+*.txt
+*.npy
+*.npz
