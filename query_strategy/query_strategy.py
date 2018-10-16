@@ -521,3 +521,109 @@ if __name__ == '__main__':
     #                batch_size=1)
     # print(idx)
     pass
+
+
+class QueryExpectedErrorReduction(utils.base.BaseQueryStrategy):
+    """
+    query-by-committee (QBC) algorithm (Seung et al., 1992) is minimizing
+    the version space, which is the set of hypotheses that are consistent
+    with the current labeled training data.
+    """
+
+    def __init__(self, X=None, y=None, method='query_by_bagging', disagreement='vote_entropy', scenario='pool'):
+        """
+
+        Parameters
+        ----------
+        X: 2D array
+            data matrix
+
+        y: array-like
+            label matrix
+
+        method: str
+            method name.
+
+        disagreement: str
+            method to calculate disagreement. should be one of ['vote_entropy', 'KL_divergence']
+
+        scenario: string, optional (default='pool')
+            should be one of ['pool', 'stream', 'membership']
+        """
+        self.method = method
+        if scenario not in ['pool', 'stream', 'membership']:
+            raise ValueError("scenario must in ['pool', 'stream', 'membership']")
+        self.scenario = scenario
+        if X is not None and y is not None:
+            self.X, self.y = check_X_y(X, y, accept_sparse='csc', multi_output=True)
+        else:
+            self.X = X
+            self.y = y
+        if disagreement in ['vote_entropy', 'KL_divergence']:
+            self.disagreement = disagreement
+        else:
+            raise ValueError("disagreement must be one of ['vote_entropy', 'KL_divergence']")
+
+    def select(self, label_index, unlabel_index, model=SVC(), batch_size=1, n_jobs=None):
+        """Select index in unlabel_index to query
+
+        Parameters
+        ----------
+        label_index: array or set like
+            index of label set
+
+        unlabel_index: array or set like
+            index of unlabel set
+
+        model : object, optional (default=svm)
+            current classification model
+
+        batch_size: int, optional (default=1)
+            batch size of AL
+
+        n_jobs: int, optional (default=None)
+            how many threads will be used in training bagging
+
+        Returns
+        -------
+        selected_idx: array-like
+            queried keys, keys are in unlabel_index
+        """
+        assert (isinstance(unlabel_index, collections.Iterable))
+        if len(unlabel_index) <= batch_size:
+            return np.array([i for i in unlabel_index])
+
+        # get unlabel_x
+        if self.X is None or self.y is None:
+            raise Exception('Data matrix is not provided, use calc_vote_entropy() instead.')
+        if not isinstance(unlabel_index, np.ndarray):
+            unlabel_index = np.array([i for i in unlabel_index])
+        if not isinstance(label_index, np.ndarray):
+            label_index = np.array([i for i in label_index])
+        unlabel_x = self.X[unlabel_index, :]
+        label_x = self.X[label_index, :]
+        if len(np.shape(self.y)) == 1:
+            label_y = self.y[label_index]
+        else:
+            label_y = self.y[label_index, :]
+        #####################################
+
+        # bagging
+        from sklearn.ensemble import BaggingClassifier
+        if n_jobs is None:
+            bagging = BaggingClassifier(model)
+        else:
+            bagging = BaggingClassifier(model, n_jobs=n_jobs)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            bagging.fit(label_x, label_y)
+        est_arr = bagging.estimators_
+
+        # calc score
+        if self.disagreement == 'vote_entropy' and self.scenario == 'pool':
+            score = self.calc_vote_entropy([estimator.predict(unlabel_x) for estimator in est_arr])
+        else:
+            score = self.calc_avg_KL_divergence([estimator.predict_proba(unlabel_x) for estimator in est_arr])
+        argret = np.argsort(score)
+        # descend
+        return unlabel_index[argret[argret.size - batch_size:]]
