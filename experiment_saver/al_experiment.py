@@ -14,7 +14,7 @@ import os
 import pickle
 
 from sklearn.svm import SVC
-from sklearn.utils import check_array
+from sklearn.utils import check_array, check_X_y
 from sklearn.utils.multiclass import unique_labels, type_of_target
 
 from data_process.al_split import split, split_multi_label, split_features
@@ -393,21 +393,66 @@ class AlExperiment:
     """AlExperiment is a  class to encapsulate various tools
     and implement the main loop of active learning.
 
+    Only support the most commonly used scenario: query label of an instance
+
     To run the experiment with only one class,
     we have to impose some restrictions to make
-    sure the robustness of the code.
+    sure the robustness of the code:
+    1. Your model object should accord scikit-learn api
+    2. If a custom query strategy is given, you should implement
+        the BaseQueryStrategy api. Additional parameters should be static.
+    3. The data split should be given if you are comparing multiple methods.
+        You may also generate new split with split_AL()
+
 
     Parameters
     ----------
+    X,y : array
+        The data matrix
+
     model: object
         An model object which accord the scikit-learn api
 
     performance_metric: str, optional (default='accuracy')
         The performance metric
+
+    train_idx: array-like, optional (default=None)
+        index of training set, shape like [n_split_count, n_training_indexex]
+
+    test_idx: array-like, optional (default=None)
+        index of testing set, shape like [n_split_count, n_testing_indexex]
+
+    label_idx: array-like, optional (default=None)
+        index of labeling set, shape like [n_split_count, n_labeling_indexex]
+
+    unlabel_idx: array-like, optional (default=None)
+        index of unlabeling set, shape like [n_split_count, n_unlabeling_indexex]
     """
 
-    def __init__(self, model=SVC(), performance_metric='accuracy', **kwargs):
-        pass
+    def __init__(self, X, y, model=SVC(), performance_metric='accuracy', **kwargs):
+        self.__custom_strategy_flag = False
+        self._split = False
+        self._split_count = 0
+
+        self._X, self._y = check_X_y(X, y, accept_sparse='csc', multi_output=True)
+        self._model = model
+        self._performance_metric = performance_metric
+
+        # set split in the initial
+        train_idx = kwargs.pop('train_idx', None)
+        test_idx = kwargs.pop('test_idx', None)
+        label_idx = kwargs.pop('label_idx', None)
+        unlabel_idx = kwargs.pop('unlabel_idx', None)
+        if train_idx is not None and test_idx is not None and label_idx is not None and unlabel_idx is not None:
+            if not (len(train_idx) == len(test_idx) == len(label_idx) == len(unlabel_idx)):
+                raise ValueError("train_idx, test_idx, label_idx, unlabel_idx "
+                                 "should have the same split count (length)")
+            self._split = True
+            self.train_idx = train_idx
+            self.test_idx = test_idx
+            self.label_idx = label_idx
+            self.unlabel_idx = unlabel_idx
+            self.split_count = len(train_idx)
 
     def set_query_strategy(self, strategy="Uncertainty", **kwargs):
         """
@@ -424,4 +469,103 @@ class AlExperiment:
             Note that, each parameters should be static.
             The parameters will be fed to the callable object automatically.
         """
+        if callable(strategy):
+            self.__custom_strategy_flag = True
+            self.query_function = strategy
+            self.__custom_func_arg = kwargs
+            return
+        if strategy not in []:
+            raise NotImplementedError('Strategy %s is not implemented. Specify a valid '
+                                      'method name or privide a callable object.', str(strategy))
         pass
+
+    def set_data_split(self, train_idx, test_idx, label_idx, unlabel_idx):
+        """set the data split indexes.
+
+        Parameters
+        ----------
+        train_idx: array-like, optional (default=None)
+            index of training set, shape like [n_split_count, n_training_indexex]
+
+        test_idx: array-like, optional (default=None)
+            index of testing set, shape like [n_split_count, n_testing_indexex]
+
+        label_idx: array-like, optional (default=None)
+            index of labeling set, shape like [n_split_count, n_labeling_indexex]
+
+        unlabel_idx: array-like, optional (default=None)
+            index of unlabeling set, shape like [n_split_count, n_unlabeling_indexex]
+
+        Returns
+        -------
+
+        """
+        if not (len(train_idx) == len(test_idx) == len(label_idx) == len(unlabel_idx)):
+            raise ValueError("train_idx, test_idx, label_idx, unlabel_idx "
+                             "should have the same split count (length)")
+        self._split = True
+        self.train_idx = train_idx
+        self.test_idx = test_idx
+        self.label_idx = label_idx
+        self.unlabel_idx = unlabel_idx
+        self._split_count = len(train_idx)
+
+    def split_AL(self, test_ratio=0.3, initial_label_rate=0.05,
+                 split_count=10, all_class=True):
+        """split dataset for active learning experiment.
+
+        Parameters
+        ----------
+        test_ratio: float, optional (default=0.3)
+            ratio of test set
+
+        initial_label_rate: float, optional (default=0.05)
+            ratio of initial label set or the existed features (missing rate = 1-initial_label_rate)
+            e.g. initial_labelset*(1-test_ratio)*n_samples
+
+        split_count: int, optional (default=10)
+            random split data split_count times
+
+        all_class: bool, optional (default=True)
+            whether each split will contain at least one instance for each class.
+            If False, a totally random split will be performed.
+
+        Returns
+        -------
+        train_idx: array-like
+            index of training set, shape like [n_split_count, n_training_indexex]
+
+        test_idx: array-like
+            index of testing set, shape like [n_split_count, n_testing_indexex]
+
+        label_idx: array-like
+            index of labeling set, shape like [n_split_count, n_labeling_indexex]
+
+        unlabel_idx: array-like
+            index of unlabeling set, shape like [n_split_count, n_unlabeling_indexex]
+
+        """
+        self._split_count = split_count
+        self._split = True
+        self.train_idx, self.test_idx, self.label_idx, self.unlabel_idx = split(
+            X=self._X,
+            y=self._y,
+            test_ratio=test_ratio,
+            initial_label_rate=initial_label_rate,
+            split_count=split_count,
+            all_class=all_class)
+        return self.train_idx, self.test_idx, self.label_idx, self.unlabel_idx
+
+
+    def start_query(self, multi_thread=True):
+        """Start the active learning main loop
+        If using implemented query strategy, It will run in multi-thread default"""
+        if not self._split:
+            raise Exception("Data split is unknown. Use set_data_split() to set an existed split, "
+                            "or use split_AL() to generate new split.")
+
+        if multi_thread:
+            aceThreading()
+        else:
+            pass
+

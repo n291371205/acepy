@@ -53,7 +53,7 @@ class IndexCollection(BaseCollection):
         """
         if data is not None:
             if isinstance(data, IndexCollection):
-                self._innercontainer = copy.deepcopy(data)
+                self._innercontainer = copy.deepcopy(data.index)
                 self._element_type = data.get_elementType()
                 return
             if not isinstance(data, (list, np.ndarray)):
@@ -176,6 +176,10 @@ class MultiLabelIndexCollection(IndexCollection):
         data: collections.Iterable
         """
         if data is not None:
+            if isinstance(data, MultiLabelIndexCollection):
+                self._innercontainer = copy.deepcopy(data.index)
+                self.label_size = data.label_size
+                return
             # check given indexes
             data = check_index_multilabel(data)
             if label_size is None:
@@ -248,10 +252,6 @@ class MultiLabelIndexCollection(IndexCollection):
         else:
             self._innercontainer.add(key)
         return self
-
-    def get_elementType(self):
-        """Return the type of the elements in the container."""
-        return self._element_type
 
     def discard(self, value):
         """Remove an element.  Do not raise an exception if absent."""
