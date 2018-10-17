@@ -149,18 +149,18 @@ def split(X=None, y=None, instance_indexes=None, query_type=None, test_ratio=0.3
     return train_idx, test_idx, label_idx, unlabel_idx
 
 
-def split_multi_label(y=None, label_shape=None, test_ratio=0.3, initial_label_rate=0.05,
-                      split_count=10, all_class=True, partially_labeled=False, saving_path='.'):
-    """Split given label matrix in multi label setting.
-    Giving one of y or label_shape to split the data.
+def __split_data_matrix(data_matrix=None, matrix_shape=None, test_ratio=0.3, initial_label_rate=0.05,
+                        split_count=10, all_class=True, partially_labeled=False, saving_path='.'):
+    """Split given data matrix with shape like [n_samples, n_labels or n_features]
+    Giving one of matrix or matrix_shape to split the data.
 
     Parameters
     ----------
-    y: array-like, optional
+    data_matrix: array-like, optional
         labels of given data, shape like [n_samples, n_labels]
 
-    label_shape: tuple, optional (default=None)
-        the shape of y, should be a tuple with 2 elements.
+    matrix_shape: tuple, optional (default=None)
+        the shape of data_matrix, should be a tuple with 2 elements.
         The first one is the number of instances, and the other is the
         number of labels.
 
@@ -204,21 +204,18 @@ def split_multi_label(y=None, label_shape=None, test_ratio=0.3, initial_label_ra
     """
 
     # check parameters
-    if y is None and label_shape is None:
+    if data_matrix is None and matrix_shape is None:
         raise Exception("Must provide one of data matrix or matrix_shape.")
     data_shape = None
-    if y is not None:
-        y = check_matrix(y)
-        ytype = type_of_target(y)
-        if ytype not in ['multilabel-indicator', 'multilabel-sequences']:
-            raise ValueError("data matrix must be a 2D array with the shape like [n_samples, n_labels]")
-        data_shape = y.shape
-    if label_shape is not None:
-        if not isinstance(label_shape, tuple) and len(label_shape) == 2:
+    if data_matrix is not None:
+        data_matrix = check_matrix(data_matrix)
+        data_shape = data_matrix.shape
+    if matrix_shape is not None:
+        if not isinstance(matrix_shape, tuple) and len(matrix_shape) == 2:
             raise TypeError("the shape of data matrix should be a tuple with 2 elements."
                             "The first one is the number of instances, and the other is the"
                             "number of labels.")
-        data_shape = label_shape
+        data_shape = matrix_shape
     instance_indexes = np.arange(data_shape[0])
 
     # split
@@ -235,7 +232,7 @@ def split_multi_label(y=None, label_shape=None, test_ratio=0.3, initial_label_ra
 
             # split label & unlabel
             train_size = len(tp_train)
-            lab_ind = randperm((0, train_size * data_shape[1] - 1), round(initial_label_rate * train_size))
+            lab_ind = randperm((0, train_size * data_shape[1] - 1), round(initial_label_rate * train_size * data_shape[1]))
             if all_class:
                 if round(initial_label_rate * train_size) < data_shape[1]:
                     raise ValueError("The initial rate is too small to guarantee that each "
@@ -259,35 +256,35 @@ def split_multi_label(y=None, label_shape=None, test_ratio=0.3, initial_label_ra
             cutpoint = round((1 - test_ratio) * len(rp))
             tp_train = instance_indexes[rp[0:cutpoint]]
 
-            cutpoint = round(initial_label_rate * len(tp_train))
-            if cutpoint <= 1:
-                cutpoint = 1
+            cutpoint_lab = round(initial_label_rate * len(tp_train))
+            if cutpoint_lab <= 1:
+                cutpoint_lab = 1
             if all_class:
-                if cutpoint < data_shape[1]:
+                if cutpoint_lab < data_shape[1]:
                     raise ValueError(
                         "The initial rate is too small to guarantee that each "
-                        "split will contain at least one instance-label pair for each class.")
+                        "split will contain at least one instance-feature pair for each class.")
                 while 1:
-                    label_id = tp_train[0:cutpoint]
-                    temp = np.sum(y[label_id], axis=0)
+                    label_id = tp_train[0:cutpoint_lab]
+                    temp = np.sum(data_matrix[label_id], axis=0)
                     if not np.any(temp == 0):
                         break
                     rp = randperm(data_shape[0] - 1)
                     cutpoint = round((1 - test_ratio) * len(rp))
                     tp_train = instance_indexes[rp[0:cutpoint]]
 
-                    cutpoint = round(initial_label_rate * len(tp_train))
+                    cutpoint_lab = round(initial_label_rate * len(tp_train))
             train_idx.append(tp_train)
             test_idx.append(instance_indexes[rp[cutpoint:]])
-            label_idx.append([(i,) for i in tp_train[0:cutpoint]])
-            unlabel_idx.append([(i,) for i in tp_train[cutpoint:]])
+            label_idx.append([(i,) for i in tp_train[0:cutpoint_lab]])
+            unlabel_idx.append([(i,) for i in tp_train[cutpoint_lab:]])
     split_save(train_idx=train_idx, test_idx=test_idx, label_idx=label_idx,
                unlabel_idx=unlabel_idx, path=saving_path)
     return train_idx, test_idx, label_idx, unlabel_idx
 
 
 def split_features(feature_matrix=None, feature_matrix_shape=None, test_ratio=0.3, missing_rate=0.5,
-                      split_count=10, all_features=True, saving_path='.'):
+                   split_count=10, all_features=True, saving_path='.'):
     """
     Split given feature matrix in feature querying setting.
     Giving one of feature_matrix or feature_matrix_shape to split the data.
@@ -296,9 +293,35 @@ def split_features(feature_matrix=None, feature_matrix_shape=None, test_ratio=0.
     is the set of instances with complete feature vectors. The training set
     has missing feature with the rate of missing_rate.
     """
-    return split_multi_label(y=feature_matrix, label_shape=feature_matrix_shape, test_ratio=test_ratio,
-                             initial_label_rate=1-missing_rate, split_count=split_count,
-                             all_class=all_features, partially_labeled=True, saving_path=saving_path)
+    return __split_data_matrix(data_matrix=feature_matrix, matrix_shape=feature_matrix_shape, test_ratio=test_ratio,
+                               initial_label_rate=1-missing_rate, split_count=split_count,
+                               all_class=all_features, partially_labeled=True, saving_path=saving_path)
+
+
+def split_multi_label(y=None, label_shape=None, test_ratio=0.3, initial_label_rate=0.05,
+                      split_count=10, all_class=True, saving_path='.'):
+    """Split multi-label data.
+    The split indexes are tuples.
+
+    Parameters
+    ----------
+    y
+    label_shape
+    test_ratio
+    initial_label_rate
+    split_count
+    all_class
+    saving_path
+
+    Returns
+    -------
+
+    """
+    return __split_data_matrix(data_matrix=y, matrix_shape=label_shape, test_ratio=test_ratio,
+                        initial_label_rate=initial_label_rate,
+                        split_count=split_count, all_class=all_class, partially_labeled=False,
+                        saving_path=saving_path)
+
 
 def split_load(path):
     """Load split from path.

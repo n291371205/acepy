@@ -116,7 +116,7 @@ class IndexCollection(BaseCollection):
         """Remove an element.  Do not raise an exception if absent."""
         if value not in self._innercontainer:
             warnings.warn("Element %s to discard is not in the collection, skip." % (value.__str__()),
-                          category=RepeatElementWarning,
+                          category=InexistentElementWarning,
                           stacklevel=3)
         else:
             self._innercontainer.remove(value)
@@ -196,7 +196,8 @@ class MultiLabelIndexCollection(IndexCollection):
             self._innercontainer = set()
             if label_size is None:
                 warnings.warn("This collection does not have a label_size value, set it manually or "
-                              "it will raise when decomposing indexes.")
+                              "it will raise when decomposing indexes.",
+                              category=ValidityWarning)
             self.label_size = label_size
 
     @property
@@ -214,15 +215,32 @@ class MultiLabelIndexCollection(IndexCollection):
         key: object
             same type of the element already in the set.
             Raise if unknown type is given.
-
-        value: object, optional (default=None)
-            supervised information given by oracle.
+            Valid key should be:
+            e.g., in 10 class classification setting, queried_index = (1, [3,4])
+            means query the 2nd instance's 4th,5th labels.
+            some legal single index examples:
+            queried_index = (1, [3,4])
+            queried_index = (1, [3])
+            queried_index = (1, 3)
+            queried_index = (1, (3))
+            queried_index = (1, (3,4))
+            queried_index = (1, )   # query all labels
         """
         # check validation
         assert(isinstance(key, tuple))
         if len(key) == 1:
             key = [(key[0], i) for i in range(self.label_size)]
             return self.update(key)
+        elif len(key) == 2:
+            if isinstance(key[1], collections.Iterable):
+                for item in key[1]:
+                    if item >= self.label_size:
+                        raise ValueError("Index %s is out of bound %s" % (str(item), str(self.label_size)))
+            else:
+                if key[1] >= self.label_size:
+                    raise ValueError("Index %s is out of bound %s" % (str(key[1]), str(self.label_size)))
+        else:
+            raise ValueError("A tuple with 1 or 2 elements is expected, but received: %s" % str(key))
         if key in self._innercontainer:
             warnings.warn("Adding element %s has already in the collection, skip." % (key.__str__()),
                           category=RepeatElementWarning,
@@ -243,7 +261,7 @@ class MultiLabelIndexCollection(IndexCollection):
             return self.difference_update(value)
         if value not in self._innercontainer:
             warnings.warn("Element %s to discard is not in the collection, skip." % (value.__str__()),
-                          category=RepeatElementWarning,
+                          category=InexistentElementWarning,
                           stacklevel=3)
         else:
             self._innercontainer.discard(value)

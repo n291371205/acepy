@@ -6,6 +6,7 @@ from __future__ import division
 from sklearn.utils.validation import check_array
 import numpy as np
 import collections
+import xml.dom.minidom
 from sklearn.utils.validation import check_X_y
 from sklearn.metrics.pairwise import linear_kernel, polynomial_kernel, \
     rbf_kernel
@@ -123,9 +124,11 @@ def integrate_multilabel_index(index_arr, label_size=None, check_arr=True):
         else:
             # length = 2
             if example_ind in integrated_dict.keys():
-                integrated_dict[example_ind].update(set(index[1]))
+                integrated_dict[example_ind].update(
+                    set(index[1] if isinstance(index[1], collections.Iterable) else [index[1]]))
             else:
-                integrated_dict[example_ind] = set(index[1])
+                integrated_dict[example_ind] = set(
+                    index[1] if isinstance(index[1], collections.Iterable) else [index[1]])
 
     for item in integrated_dict.items():
         if len(item[1]) == label_size:
@@ -396,6 +399,36 @@ def calc_kernel_matrix(X, kernel, **kwargs):
         raise NotImplementedError
 
     return K
+
+
+# Implement image dataset related function.
+
+def read_voc_like(xml_path, filename):
+    """Read annotations of voc like image dataset. The annotation file is .xml"""
+    xml_filename = filename.split('.')[0] + '.xml'
+    xml_file = xml_path + '\\' + xml_filename
+    dom = xml.dom.minidom.parse(xml_file)
+    root = dom.documentElement
+    element_dict = dict()
+
+    # gathering elements
+    bndboxes = root.getElementsByTagName('bndbox')
+    for bndbox in bndboxes:
+        xmin = bndbox.getElementsByTagName('xmin')[0]
+        ymin = bndbox.getElementsByTagName('ymin')[0]
+        xmax = bndbox.getElementsByTagName('xmax')[0]
+        ymax = bndbox.getElementsByTagName('ymax')[0]
+
+
+# use coco api to implement
+def read_coco():
+    """Read annotations of coco like image dataset. The annotation file is .json.
+
+    Returns
+    -------
+
+    """
+    pass
 
 
 if __name__ == '__main__':

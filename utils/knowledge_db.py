@@ -18,12 +18,6 @@ from utils.ace_warnings import *
 from utils.base import BaseDB
 from utils.tools import _is_arraylike
 
-"Using a factory class to generate the appropriate DB"
-
-
-class KnowledgeDB:
-    pass
-
 
 class ElementKnowledgeDB(BaseDB):
     """Class to store fine-grained (element-wise) data.

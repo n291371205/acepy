@@ -246,7 +246,7 @@ class ToolBox:
             return copy.deepcopy(self.train_idx), copy.deepcopy(self.test_idx), \
                    copy.deepcopy(self.label_idx), copy.deepcopy(self.unlabel_idx)
 
-    def get_clean_oracle(self):
+    def clean_oracle(self):
         if self.query_type == 'Features':
             return OracleQueryFeatures(feature_mat=self._X)
         elif self.query_type == 'AllLabels':
@@ -255,12 +255,12 @@ class ToolBox:
             else:
                 return Oracle(self._y)
 
-    def get_saver(self, round):
+    def StateIO(self, round):
         assert (0 <= round < self.split_count)
         train_id, test_id, Ucollection, Lcollection = self.get_split(round)
         return StateIO(round, train_id, test_id, Ucollection, Lcollection)
 
-    def __get_knowledge_db(self, round):
+    def __knowledge_db(self, round):
         assert (0 <= round < self.split_count)
         train_id, test_id, Ucollection, Lcollection = self.get_split(round)
         if self.query_type == 'AllLabels':
@@ -270,7 +270,7 @@ class ToolBox:
         else:
             raise NotImplemented("other query types for knowledge DB is not implemented yet.")
 
-    def get_query_strategy(self, strategy_name="random"):
+    def query_strategy(self, strategy_name="random"):
         """Return the query strategy object.
 
         Parameters
@@ -283,6 +283,7 @@ class ToolBox:
         """
         if self.query_type != "AllLabels":
             raise NotImplemented("Query strategy for other query types is not implemented yet.")
+        pass
 
     def get_multilabel_matrix_by_index(self, index, missing_value=0):
         """Index multilabel matrix by index. It can have missing value (query example-label pairs),
@@ -301,10 +302,10 @@ class ToolBox:
             raise Exception("This function is only available in multi label setting.")
         return get_labelmatrix_in_multilabel(index=index, data_matrix=self._y, unknown_element=missing_value)
 
-    def get_default_model(self):
+    def default_model(self):
         return SVC()
 
-    def get_stopping_criterion(self, stopping_criteria=None, value=None):
+    def stopping_criterion(self, stopping_criteria=None, value=None):
         """Return example stopping criterion.
 
         Parameters
@@ -320,11 +321,11 @@ class ToolBox:
         """
         return StoppingCriteria(stopping_criteria=stopping_criteria, value=value)
 
-    def get_experiment_analyser(self):
+    def experiment_analyser(self):
         """Return ExperimentAnalyser object"""
         return ExperimentAnalyser()
 
-    def get_aceThreading(self, max_thread=None, refresh_interval=1, saving_path='.'):
+    def aceThreading(self, target_function=None, max_thread=None, refresh_interval=1, saving_path='.'):
         """Return the multithreading tool class
 
         Parameters
@@ -346,9 +347,10 @@ class ToolBox:
                             unlabel_index=self.unlabel_idx,
                             refresh_interval=refresh_interval,
                             max_thread=max_thread,
-                            saving_path=saving_path)
+                            saving_path=saving_path,
+                            target_func=target_function)
 
-    def save_settings(self):
+    def save(self):
         """Save the experiment settings to file for auditting or loading for other methods."""
         if self._saving_path is None:
             return
@@ -365,7 +367,7 @@ class ToolBox:
         return IndexCollection(array)
 
     @classmethod
-    def load_settings(cls, path):
+    def load(cls, path):
         """Loading ExperimentSetting object from path.
 
         Parameters
