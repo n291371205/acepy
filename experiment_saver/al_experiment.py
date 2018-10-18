@@ -12,6 +12,7 @@ sure the robustness of the code.
 import copy
 import os
 import pickle
+import inspect
 
 from sklearn.svm import SVC
 from sklearn.utils import check_array, check_X_y
@@ -20,6 +21,7 @@ from sklearn.utils.multiclass import unique_labels, type_of_target
 from data_process.al_split import split, split_multi_label, split_features
 from experiment_saver.state_io import StateIO
 from oracle.oracle import OracleQueryMultiLabel, Oracle, OracleQueryFeatures
+from experiment_saver.state import State
 from query_strategy.query_strategy import QueryInstanceUncertainty, QueryRandom
 from utils.ace_warnings import *
 from utils.al_collections import IndexCollection, MultiLabelIndexCollection, FeatureIndexCollection
@@ -213,7 +215,7 @@ class ToolBox:
                     initial_label_rate=initial_label_rate,
                     split_count=split_count,
                     all_class=all_class,
-                    partially_labeled=False)
+                    )
         else:
             self.train_idx, self.test_idx, self.label_idx, self.unlabel_idx = split_features(
                 feature_matrix=self._X,
@@ -425,6 +427,9 @@ class AlExperiment:
         'percent_of_unlabel': stop when specific percentage of unlabeled data pool is labeled.
         'time_limit': stop when CPU time reaches the limit.
 
+    batch_size: int, optional (default=1)
+        batch size of AL
+
     train_idx: array-like, optional (default=None)
         index of training set, shape like [n_split_count, n_training_indexex]
 
@@ -439,7 +444,7 @@ class AlExperiment:
     """
 
     def __init__(self, X, y, model=SVC(), performance_metric='accuracy',
-                 stopping_criteria=None, stopping_value=None, **kwargs):
+                 stopping_criteria=None, stopping_value=None, batch_size=1, **kwargs):
         self.__custom_strategy_flag = False
         self._split = False
         self._split_count = 0
@@ -465,6 +470,7 @@ class AlExperiment:
             self._split_count = len(train_idx)
 
         self._stopping_criterion = StoppingCriteria(stopping_criteria, stopping_value)
+        self._batch_size = 1
 
     def set_query_strategy(self, strategy="Uncertainty", **kwargs):
         """
@@ -568,7 +574,6 @@ class AlExperiment:
             all_class=all_class)
         return self._train_idx, self._test_idx, self._label_idx, self._unlabel_idx
 
-
     def start_query(self, multi_thread=True):
         """Start the active learning main loop
         If using implemented query strategy, It will run in multi-thread default"""
@@ -582,7 +587,7 @@ class AlExperiment:
             pass
 
     def __al_main_loop(self, round, train_id, test_id, Lcollection, Ucollection,
-                       saver, _examples, _labels, global_parameters):
+                       saver, examples, labels, global_parameters):
         self._model.fit(X=self._X[Lcollection.index, :], y=self.y[Lcollection.index])
         pred = self._model.predict(self._X[test_id, :])
 
@@ -590,8 +595,26 @@ class AlExperiment:
         accuracy = sum(pred == self._y[test_id]) / len(test_id)
 
         saver.set_initial_point(accuracy)
-
         while not self._stopping_criterion:
-            self._query_function.select()
+            if not self.__custom_strategy_flag:
+                if 'model' in inspect.getfullargspec(self._query_function.select)[0]:
+                    select_ind = self._query_function.select(Lcollection, Ucollection, batch_size=self._batch_size,
+                                                             model=self._model)
+                else:
+                    select_ind = self._query_function.select(Lcollection, Ucollection, batch_size=self._batch_size)
+            else:
+                select_ind = self._query_function.select(Lcollection, Ucollection, batch_size=self._batch_size,
+                                                         **self.__custom_func_arg)
+            Lcollection.update(select_ind)
+            Ucollection.difference_update(select_ind)
+            # update model
+            self._model.fit(X=self._X[Lcollection.index, :], y=self._y[Lcollection.index])
+            pred = self._model.predict(self._X[test_id, :])
 
+            # performance calc
+            accuracy = sum(pred == self._y[test_id]) / len(test_id)
 
+            # save intermediate results
+            st = State(select_index=select_ind, performance=accuracy)
+            saver.add_state(st)
+            saver.save()

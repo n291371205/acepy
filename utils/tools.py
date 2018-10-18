@@ -47,7 +47,7 @@ def infer_label_size_multilabel(index_arr, check_arr=True):
 
     Returns
     -------
-    label_size: int
+    _label_size: int
         the inferred label size.
     """
     if check_arr:
@@ -61,7 +61,7 @@ def infer_label_size_multilabel(index_arr, check_arr=True):
     else:
         raise ValueError(
             "All elements in indexes should be a tuple, with length = 1 (example_index, ) "
-            "to query all _labels or length = 2 (example_index, [label_indexes]) to query specific _labels.")
+            "to query all labels or length = 2 (example_index, [label_indexes]) to query specific labels.")
     return label_size
 
 

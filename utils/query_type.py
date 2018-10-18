@@ -14,17 +14,17 @@ def check_query_type(type):
     Only the following query types are allowed:
         AllowedType:
             AllLabels: Query all _labels of an instance
-            PartLabels: Query part of _labels of an instance (Only available in multi-label setting)
+            PartLabels: Query part of labels of an instance (Only available in multi-label setting)
             Features: Query unlab_features of instances
         NotImplementedQueryType
             Relations: Query relations between two object
-            Examples: Query _examples given constrains
+            Examples: Query examples given constrains
 
 
-        AllLabels: query all _labels of an selected instance.
+        AllLabels: query all labels of an selected instance.
             Support scene: binary classification, multi-class classification, multi-label classification, regression
 
-        Partlabels: query part of _labels of an instance.
+        Partlabels: query part of labels of an instance.
             Support scene: multi-label classification
 
         Features: query part of features of an instance.

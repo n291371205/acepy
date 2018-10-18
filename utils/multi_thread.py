@@ -24,7 +24,7 @@ class aceThreading:
     and then provide them as parameters for visualization.
 
     Specifically, the parameters of thread function must be:
-    (round, train_id, test_id, Ucollection, Lcollection, _saver, _examples, _labels, global_parameters)
+    (round, train_id, test_id, Ucollection, Lcollection, saver, examples, labels, global_parameters)
     in which, the global_parameters is a dict which contains the other variables for user-defined function.
 
     Parameters
@@ -111,12 +111,12 @@ class aceThreading:
         """
         # check target function validity
         argname = inspect.getfullargspec(target_function)[0]
-        for name1 in ['round', 'train_id', 'test_id', 'Ucollection', 'Lcollection', '_saver', '_examples', '_labels',
+        for name1 in ['round', 'train_id', 'test_id', 'Ucollection', 'Lcollection', 'saver', 'examples', 'labels',
                       'global_parameters']:
             if name1 not in argname:
                 raise NameError(
                     "the parameters of target_func must be (round, train_id, test_id, "
-                    "Ucollection, Lcollection, _saver, _examples, _labels, global_parameters)")
+                    "Ucollection, Lcollection, saver, examples, labels, global_parameters)")
         self._target_func = target_function
 
 
@@ -154,7 +154,7 @@ class aceThreading:
             t = threading.Thread(target=self._target_func, name=str(i), kwargs={
                 'round': i, 'train_id': self._train_idx[i], 'test_id': self._test_idx[i],
                 'Ucollection': copy.deepcopy(self._unlabel_index[i]), 'Lcollection': copy.deepcopy(self._label_index[i]),
-                '_saver': self._saver[i], '_examples': self._examples, '_labels': self._labels,
+                'saver': self._saver[i], 'examples': self._examples, 'labels': self._labels,
                 'global_parameters': global_parameters})
             self.__threads.append(t)
 

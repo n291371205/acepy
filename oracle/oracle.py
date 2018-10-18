@@ -41,7 +41,7 @@ class Oracle(utils.base.BaseVirtualOracle):
         and is one-to-one correspondence of y, default is 1.
     """
 
-    def __init__(self, labels, examples=None, indexes=None, cost=None):
+    def __init__(self, labels: object, examples: object = None, indexes: object = None, cost: object = None) -> object:
         labels = check_array(labels, ensure_2d=False, dtype=None)
         if isinstance(labels[0], np.generic):
             self._label_type = type(np.asscalar(labels[0]))
@@ -330,7 +330,7 @@ class OracleQueryMultiLabel(Oracle):
     def __init__(self, labels, examples=None, indexes=None, cost=None):
         labels = check_array(labels, ensure_2d=True, dtype=None)
         self._label_shape = np.shape(labels)
-        super().__init__(labels, examples, indexes, cost)
+        super(OracleQueryMultiLabel, self).__init__(labels, examples, indexes, cost)
         if self._cost_flag:
             if np.shape(cost) != np.shape(labels):
                 raise ValueError("Different shapes of cost and _labels found. Cost of each queried"

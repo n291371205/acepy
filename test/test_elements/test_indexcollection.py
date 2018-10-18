@@ -82,7 +82,7 @@ def test_basic_multiind():
 def test_warn_multiind():
     with pytest.warns(RepeatElementWarning, match=r'.*same elements in the given data'):
         a = MultiLabelIndexCollection([(0,1), (0,2), (0,1)], label_size=3)
-    with pytest.warns(ValidityWarning, match=r'This collection does not have a label_size value.*'):
+    with pytest.warns(ValidityWarning, match=r'This collection does not have a _label_size value.*'):
         MultiLabelIndexCollection()
     with pytest.warns(RepeatElementWarning):
         a.update((0, 1))
