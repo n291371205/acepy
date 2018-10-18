@@ -73,7 +73,7 @@ class StateIO:
                  check_flag=True, verbose=True, print_interval=1):
         """When init this class,
         should store the basic info of this active learning info,
-        include: thread_id, train/test_idx, round, etc.
+        include: thread_id, train/_test_idx, round, etc.
         """
         assert (isinstance(check_flag, bool))
         assert (isinstance(verbose, bool))
@@ -87,8 +87,8 @@ class StateIO:
             assert (isinstance(init_U, collections.Iterable))
             assert (isinstance(init_L, collections.Iterable))
             assert (isinstance(round, int) and round >= 0)
-            # if not (len(train_idx) == len(init_L) + len(init_U)):
-            #     warnings.warn("Length of train_idx is not equal len(init_L) + len(init_U).")
+            # if not (len(_train_idx) == len(init_L) + len(init_U)):
+            #     warnings.warn("Length of _train_idx is not equal len(init_L) + len(init_U).")
 
         self.round = round
         self.train_idx = copy.copy(train_idx)
@@ -217,16 +217,16 @@ class StateIO:
 
         Returns
         -------
-        train_idx: array-like
+        _train_idx: array-like
             index of training set, shape like [n_training_samples]
 
-        test_idx: array-like
+        _test_idx: array-like
             index of testing set, shape like [n_testing_samples]
 
-        label_idx: array-like
+        _label_idx: array-like
             index of labeling set, shape like [n_labeling_samples]
 
-        unlabel_idx: array-like
+        _unlabel_idx: array-like
             index of unlabeling set, shape like [n_unlabeling_samples]
         """
         if iteration is None:
@@ -252,16 +252,16 @@ class StateIO:
 
         Returns
         -------
-        train_idx: array-like
+        _train_idx: array-like
             index of training set, shape like [n_training_samples]
 
-        test_idx: array-like
+        _test_idx: array-like
             index of testing set, shape like [n_testing_samples]
 
-        label_idx: array-like
+        _label_idx: array-like
             index of labeling set, shape like [n_labeling_samples]
 
-        unlabel_idx: array-like
+        _unlabel_idx: array-like
             index of unlabeling set, shape like [n_unlabeling_samples]
         """
         if iteration is None:
@@ -334,7 +334,7 @@ class StateIO:
         return tb.splitlines()[1]
 
 # class StateIO_all_labels(StateIO):
-#     """StateIO for all labels querying"""
+#     """StateIO for all _labels querying"""
 #     def add_state(self, state):
 #         assert (isinstance(state, experiment_saver.state.State))
 #         self.__state_list.append(copy.deepcopy(state))

@@ -117,10 +117,6 @@ def test_split2():
     for i in range(split_count):
         check_index_multilabel(label_idx[i])
         check_index_multilabel(unlabel_idx[i])
-        # print(train_idx[i])
-        # print(test_idx[i])
-        # print(len(train_idx[i]))
-        # print(len(test_idx[i]))
         train = set(train_idx[i])
         test = set(test_idx[i])
         assert len(test) == round(0.3 * instance_num)
@@ -182,11 +178,6 @@ def test_split3():
         train = set(train_idx[i])
         test = set(test_idx[i])
         traintest = train.union(test)
-
-        # print(len(train_idx[i]))
-        # print(len(test_idx[i]))
-        # print(len(label_idx[i]))
-        # print(len(unlabel_idx[i]))
 
         # validity
         assert len(flattern_multilabel_index(index_arr=unlabel_idx[i], label_size=feature_num)) == round(

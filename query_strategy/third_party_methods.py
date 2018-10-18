@@ -48,7 +48,7 @@ import utils.tools
 class QueryInstanceQUIRE(utils.base.BaseQueryStrategy):
     """Querying Informative and Representative Examples (QUIRE)
 
-    Query the most informative and representative examples where the metrics
+    Query the most informative and representative _examples where the metrics
     measuring and combining are done using min-max approach.
 
     Parameters
@@ -92,7 +92,7 @@ class QueryInstanceQUIRE(utils.base.BaseQueryStrategy):
     References
     ----------
     [1] Huang S J, Jin R, Zhou Z H. Active learning by querying informative and
-        representative examples[C]// International Conference on Neural Information
+        representative _examples[C]// International Conference on Neural Information
         Processing Systems. Curran Associates Inc. 2010:892-900.
     """
 
@@ -139,7 +139,7 @@ class QueryInstanceQUIRE(utils.base.BaseQueryStrategy):
         Returns
         -------
         selected_index: list
-            the index of instance. It is an element in unlabel_index.
+            the index of instance. It is an element in _unlabel_index.
         """
         L = self.L
         Lindex = list(label_index)

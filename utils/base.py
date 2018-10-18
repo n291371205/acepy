@@ -17,7 +17,7 @@ class BaseQueryStrategy(metaclass=ABCMeta):
     Base query class
     should set the parameters and global const in __init__
     implement query function with data matrix
-    should return element in unlabel_index set
+    should return element in _unlabel_index set
     """
     def __init__(self, X=None, y=None, **kwargs):
         if X is not None and y is not None:
@@ -32,7 +32,7 @@ class BaseQueryStrategy(metaclass=ABCMeta):
 
         Returns
         -------
-        queried keys, key should be in unlabel_index
+        queried keys, key should be in _unlabel_index
         """
         pass
 
@@ -62,7 +62,7 @@ class BaseOracle(metaclass=ABCMeta):
 
         Returns
         -------
-        labels of queried _indexes AND cost
+        _labels of queried _indexes AND cost
         """
         pass
 
@@ -86,7 +86,7 @@ class BaseVirtualOracle(metaclass=ABCMeta):
 
         Returns
         -------
-        labels of queried _indexes AND cost
+        _labels of queried _indexes AND cost
         """
         pass
 
@@ -204,7 +204,7 @@ class BaseDB(metaclass=ABCMeta):
         Parameters
         ----------
         labels: array-like or object
-            labels to be updated.
+            _labels to be updated.
 
         indexes: array-like or object
             if multiple example-label pairs are provided, it should be a list or np.ndarray type
@@ -214,7 +214,7 @@ class BaseDB(metaclass=ABCMeta):
             cost corresponds to the query.
 
         examples: array-like or object
-            examples to be updated.
+            _examples to be updated.
         """
         pass
 
@@ -237,12 +237,12 @@ class BaseDB(metaclass=ABCMeta):
 
     @abstractmethod
     def retrieve_by_examples(self, examples):
-        """retrieve by examples
+        """retrieve by _examples
 
         Parameters
         ----------
         examples: array-like or object
-            if 2 or more examples to retrieve, a 2D array is expected
+            if 2 or more _examples to retrieve, a 2D array is expected
             otherwise, it will be treated as only one index.
 
         Returns
@@ -254,7 +254,7 @@ class BaseDB(metaclass=ABCMeta):
 
     @abstractmethod
     def get_examples(self):
-        """Get all examples in the data base
+        """Get all _examples in the data base
 
         If this object is a MatrixKnowledgeDB, it will return the feature matrix,
         otherwise, A dict will be returned.
@@ -263,7 +263,7 @@ class BaseDB(metaclass=ABCMeta):
 
     @abstractmethod
     def get_labels(self, *args):
-        """Get all labels in the data base
+        """Get all _labels in the data base
 
         If this object is a MatrixKnowledgeDB, it will return the label matrix,
         otherwise, unknown elements will be set to a specific value (query a single label in multi-label setting).

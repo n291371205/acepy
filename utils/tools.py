@@ -61,7 +61,7 @@ def infer_label_size_multilabel(index_arr, check_arr=True):
     else:
         raise ValueError(
             "All elements in indexes should be a tuple, with length = 1 (example_index, ) "
-            "to query all labels or length = 2 (example_index, [label_indexes]) to query specific labels.")
+            "to query all _labels or length = 2 (example_index, [label_indexes]) to query specific _labels.")
     return label_size
 
 
@@ -145,12 +145,12 @@ def get_labelmatrix_in_multilabel(index, data_matrix, unknown_element=0):
     Note:
     Each index should be a tuple, with the first element representing instance index.
     e.g.
-    queried_index = (1, [3,4])  # 1st instance, 3rd,4t labels
-    queried_index = (1, [3])    # 1st instance, 3rd labels
+    queried_index = (1, [3,4])  # 1st instance, 3rd,4t _labels
+    queried_index = (1, [3])    # 1st instance, 3rd _labels
     queried_index = (1, 3)
     queried_index = (1, (3))
     queried_index = (1, (3,4))
-    queried_index = (1, )   # query all labels
+    queried_index = (1, )   # query all _labels
 
     Parameters
     ----------
@@ -170,7 +170,7 @@ def get_labelmatrix_in_multilabel(index, data_matrix, unknown_element=0):
         data matrix given index
 
     index_arr: list
-        index of examples correspond to the each row of Matrix_clip
+        index of _examples correspond to the each row of Matrix_clip
     """
     # check validity
     index = check_index_multilabel(index)
@@ -187,8 +187,8 @@ def get_labelmatrix_in_multilabel(index, data_matrix, unknown_element=0):
         k_len = len(k)
         if k_len != 1 and k_len != 2:
             raise ValueError(
-                "A single index should only have 1 element (example_index, ) to query all labels or"
-                "2 elements (example_index, [label_indexes]) to query specific labels. But found %d in %s" %
+                "A single index should only have 1 element (example_index, ) to query all _labels or"
+                "2 elements (example_index, [label_indexes]) to query specific _labels. But found %d in %s" %
                 (len(k), str(k)))
         example_ind = k[0]
         assert (example_ind < ins_bound)
@@ -198,7 +198,7 @@ def get_labelmatrix_in_multilabel(index, data_matrix, unknown_element=0):
             index_arr.append(example_ind)
             ind_row = -1  # new row
             current_rows += 1
-        if k_len == 1:  # all labels
+        if k_len == 1:  # all _labels
             label_ind = [i for i in range(ele_bound)]
         else:
             if isinstance(k[1], collections.Iterable):
@@ -226,12 +226,12 @@ def get_Xy_in_multilabel(index, X, y, unknown_element=0):
     Note:
     Each index should be a tuple, with the first element representing instance index.
     e.g.
-    queried_index = (1, [3,4])  # 1st instance, 3rd,4t labels
-    queried_index = (1, [3])    # 1st instance, 3rd labels
+    queried_index = (1, [3,4])  # 1st instance, 3rd,4t _labels
+    queried_index = (1, [3])    # 1st instance, 3rd _labels
     queried_index = (1, 3)
     queried_index = (1, (3))
     queried_index = (1, (3,4))
-    queried_index = (1, )   # query all labels
+    queried_index = (1, )   # query all _labels
 
     Parameters
     ----------
@@ -256,7 +256,7 @@ def get_Xy_in_multilabel(index, X, y, unknown_element=0):
     # check validity
     X = check_matrix(X)
     if not len(X) == len(y):
-        raise ValueError("Different length of instances and labels found.")
+        raise ValueError("Different length of instances and _labels found.")
 
     label_matrix, ins_index = get_labelmatrix_in_multilabel(index, y)
     return X[ins_index, :], label_matrix

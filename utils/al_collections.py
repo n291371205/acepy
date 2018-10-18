@@ -35,7 +35,7 @@ class IndexCollection(BaseCollection):
         of (sample,label) for instance-label pair query,
         (sample, feature) for feature query, (sample, sample) for active clustering;
         if int, it is treated as the index of example, and each query will return
-        ALL labels of the selected example.
+        ALL _labels of the selected example.
 
         Note that, if multiple indexes are contained, a list or np.ndarray should be given.
         Otherwise, it will be cheated as an object.
@@ -165,7 +165,7 @@ class IndexCollection(BaseCollection):
 class MultiLabelIndexCollection(IndexCollection):
     """Class for multi-label index.
 
-    Mainly solve the difference between index in querying all labels and specific labels
+    Mainly solve the difference between index in querying all _labels and specific _labels
     """
 
     def __init__(self, data=None, label_size=None):
@@ -187,7 +187,7 @@ class MultiLabelIndexCollection(IndexCollection):
             else:
                 self.label_size = label_size
 
-            # decompose all labels queries.
+            # decompose all _labels queries.
             decomposed_data = flattern_multilabel_index(data, self.label_size, check_arr=False)
 
             self._innercontainer = set(decomposed_data)
@@ -221,14 +221,14 @@ class MultiLabelIndexCollection(IndexCollection):
             Raise if unknown type is given.
             Valid key should be:
             e.g., in 10 class classification setting, queried_index = (1, [3,4])
-            means query the 2nd instance's 4th,5th labels.
-            some legal single index examples:
+            means query the 2nd instance's 4th,5th _labels.
+            some legal single index _examples:
             queried_index = (1, [3,4])
             queried_index = (1, [3])
             queried_index = (1, 3)
             queried_index = (1, (3))
             queried_index = (1, (3,4))
-            queried_index = (1, )   # query all labels
+            queried_index = (1, )   # query all _labels
         """
         # check validation
         assert(isinstance(key, tuple))
@@ -345,7 +345,7 @@ if __name__ == '__main__':
     print(a)
     train_idx, test_idx, unlabel_idx, label_idx = split_multi_label(y=np.random.randint(0, 2, 800).reshape(100, -1),
                                                                     initial_label_rate=0.15, partially_labeled=False)
-    # b = MultiLabelIndexCollection(label_idx[0])
+    # b = MultiLabelIndexCollection(_label_idx[0])
 
     b = MultiLabelIndexCollection(label_idx[0], label_size=8)
     print(b)

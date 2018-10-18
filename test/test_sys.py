@@ -18,7 +18,7 @@
 #
 # # X, y, _ = load_csv_data('C:\\Code\\altools\\dataset\\iris.csv')
 # X, y = load_iris(return_X_y=True)
-# Train_idx, Test_idx, L_pool, U_pool = split(X=X, y=y, test_ratio=0.3, initial_label_rate=0.2, split_count=5)
+# Train_idx, Test_idx, L_pool, U_pool = split(X=X, y=y, test_ratio=0.3, initial_label_rate=0.2, _split_count=5)
 # ea = ExperimentAnalyser()
 #
 #
@@ -40,8 +40,8 @@
 #     pred = reg.predict(X[test_id, :])
 #     accuracy = sum(pred == y[test_id]) / len(test_id)
 #     # initialize StateIO module
-#     saver = StateIO(round, train_id, test_id, Lcollection, Ucollection, initial_point=accuracy)
-#     # saver = StateIO(round, train_id, test_id, Ucollection, Lcollection)
+#     _saver = StateIO(round, train_id, test_id, Lcollection, Ucollection, initial_point=accuracy)
+#     # _saver = StateIO(round, train_id, test_id, Ucollection, Lcollection)
 #     while len(Ucollection) > 10:
 #         select_index = qs.select(Lcollection, Ucollection, reg)
 #         # accerlate version is available
@@ -62,15 +62,15 @@
 #         st = State(select_index=select_index, queried_label=values, cost=costs, performance=accuracy)
 #         # add user defined information
 #         # st.add_element(key='sub_ind', value=sub_ind)
-#         saver.add_state(st)
-#         saver.save()
+#         _saver.add_state(st)
+#         _saver.save()
 #
 #         # get State and workspace
-#         # stored queried instances, labels, costs, performance and user defined items
+#         # stored queried instances, _labels, costs, performance and user defined items
 #         # using like a dict
-#         # st = saver.get_state(5)
-#         # Lcollection, Ucollection = saver.get_workspace(5)
-#     ae.add_fold(saver)
+#         # st = _saver.get_state(5)
+#         # Lcollection, Ucollection = _saver.get_workspace(5)
+#     ae.add_fold(_saver)
 # ea.add_method(ae)
 #
 #
@@ -88,7 +88,7 @@
 #     reg.fit(X=X[Lcollection.index, :], y=y[Lcollection.index])
 #     pred = reg.predict(X[test_id, :])
 #     accuracy = sum(pred == y[test_id]) / len(test_id)
-#     saver = StateIO(round, train_id, test_id, Lcollection, Ucollection, initial_point=accuracy)
+#     _saver = StateIO(round, train_id, test_id, Lcollection, Ucollection, initial_point=accuracy)
 #     while len(Ucollection) > 10:
 #         select_index = qs.select(None, Ucollection)
 #         # accerlate version is available
@@ -109,15 +109,15 @@
 #         st = State(select_index=select_index, queried_label=values, cost=costs, performance=accuracy)
 #         # add user defined information
 #         # st.add_element(key='sub_ind', value=sub_ind)
-#         saver.add_state(st)
-#         saver.save()
+#         _saver.add_state(st)
+#         _saver.save()
 #
 #         # get State and workspace
-#         # stored queried instances, labels, costs, performance and user defined items
+#         # stored queried instances, _labels, costs, performance and user defined items
 #         # using like a dict
-#         # st = saver.get_state(5)
-#         # Lcollection, Ucollection = saver.get_workspace(5)
-#     ae.add_fold(saver)
+#         # st = _saver.get_state(5)
+#         # Lcollection, Ucollection = _saver.get_workspace(5)
+#     ae.add_fold(_saver)
 # ea.add_method(ae)
 #
 #
@@ -135,7 +135,7 @@
 #     reg.fit(X=X[Lcollection.index, :], y=y[Lcollection.index])
 #     pred = reg.predict(X[test_id, :])
 #     accuracy = sum(pred == y[test_id]) / len(test_id)
-#     saver = StateIO(round, train_id, test_id, Lcollection, Ucollection, initial_point=accuracy)
+#     _saver = StateIO(round, train_id, test_id, Lcollection, Ucollection, initial_point=accuracy)
 #     while len(Ucollection) > 10:
 #         select_index = qs.select(Lcollection, Ucollection, reg)
 #         # accerlate version is available
@@ -156,15 +156,15 @@
 #         st = State(select_index=select_index, queried_label=values, cost=costs, performance=accuracy)
 #         # add user defined information
 #         # st.add_element(key='sub_ind', value=sub_ind)
-#         saver.add_state(st)
-#         saver.save()
+#         _saver.add_state(st)
+#         _saver.save()
 #
 #         # get State and workspace
-#         # stored queried instances, labels, costs, performance and user defined items
+#         # stored queried instances, _labels, costs, performance and user defined items
 #         # using like a dict
-#         # st = saver.get_state(5)
-#         # Lcollection, Ucollection = saver.get_workspace(5)
-#     ae.add_fold(saver)
+#         # st = _saver.get_state(5)
+#         # Lcollection, Ucollection = _saver.get_workspace(5)
+#     ae.add_fold(_saver)
 # ea.add_method(ae)
 #
 # qs = QueryInstanceQBC(X,y,disagreement='KL_divergence')
@@ -181,7 +181,7 @@
 #     reg.fit(X=X[Lcollection.index, :], y=y[Lcollection.index])
 #     pred = reg.predict(X[test_id, :])
 #     accuracy = sum(pred == y[test_id]) / len(test_id)
-#     saver = StateIO(round, train_id, test_id, Lcollection, Ucollection, initial_point=accuracy)
+#     _saver = StateIO(round, train_id, test_id, Lcollection, Ucollection, initial_point=accuracy)
 #     while len(Ucollection) > 10:
 #         select_index = qs.select(Lcollection, Ucollection, reg)
 #         # accerlate version is available
@@ -202,15 +202,15 @@
 #         st = State(select_index=select_index, queried_label=values, cost=costs, performance=accuracy)
 #         # add user defined information
 #         # st.add_element(key='sub_ind', value=sub_ind)
-#         saver.add_state(st)
-#         saver.save()
+#         _saver.add_state(st)
+#         _saver.save()
 #
 #         # get State and workspace
-#         # stored queried instances, labels, costs, performance and user defined items
+#         # stored queried instances, _labels, costs, performance and user defined items
 #         # using like a dict
-#         # st = saver.get_state(5)
-#         # Lcollection, Ucollection = saver.get_workspace(5)
-#     ae.add_fold(saver)
+#         # st = _saver.get_state(5)
+#         # Lcollection, Ucollection = _saver.get_workspace(5)
+#     ae.add_fold(_saver)
 # ea.add_method(ae)
 #
 # print(ea)

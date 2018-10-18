@@ -25,33 +25,33 @@
 # ae = AlExperiment(method_name='QBC_ve')
 #
 #
-# def run_thread(round, train_id, test_id, Lcollection, Ucollection, saver, examples, labels, global_parameters):
+# def run_thread(round, train_id, test_id, Lcollection, Ucollection, _saver, _examples, _labels, global_parameters):
 #     # initialize object
-#     reg.fit(X=examples[Lcollection.index, :], y=labels[Lcollection.index])
+#     reg.fit(X=_examples[Lcollection.index, :], y=_labels[Lcollection.index])
 #     pred = reg.predict(X[test_id, :])
 #     accuracy = sum(pred == y[test_id]) / len(test_id)
 #     # initialize StateIO module
-#     saver.set_initial_point(accuracy)
+#     _saver.set_initial_point(accuracy)
 #     while len(Ucollection) > 10:
 #         select_index = qs.select(Lcollection, Ucollection, reg, n_jobs=1)
 #         Ucollection.difference_update(select_index)
 #         Lcollection.update(select_index)
 #
 #         # update model
-#         reg.fit(X=examples[Lcollection.index, :], y=labels[Lcollection.index])
-#         pred = reg.predict(examples[test_id, :])
-#         accuracy = sum(pred == labels[test_id]) / len(test_id)
+#         reg.fit(X=_examples[Lcollection.index, :], y=_labels[Lcollection.index])
+#         pred = reg.predict(_examples[test_id, :])
+#         accuracy = sum(pred == _labels[test_id]) / len(test_id)
 #
 #         # save intermediate results
 #         st = State(select_index=select_index, performance=accuracy)
 #         # add user defined information
 #         # st.add_element(key='sub_ind', value=sub_ind)
-#         saver.add_state(st)
-#         saver.save()
+#         _saver.add_state(st)
+#         _saver.save()
 #
 # mt = aceThreading.recover('./multi_thread_state.pkl')
 # mt.start_all_threads()
-# ae.add_folds(mt.saver)
+# ae.add_folds(mt._saver)
 # ea.add_method(ae)
 #
 # print(ea)

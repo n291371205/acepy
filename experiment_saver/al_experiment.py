@@ -46,7 +46,7 @@ class ToolBox:
     Parameters
     ----------
     y: array-like
-        labels of given data [n_samples, n_labels] or [n_samples]
+        _labels of given data [n_samples, n_labels] or [n_samples]
 
     X: array-like, optional (default=None)
         data matrix with [n_samples, n_features].
@@ -62,10 +62,10 @@ class ToolBox:
         active learning settings. It will determine how to split data.
         should be one of ['AllLabels', 'Partlabels', 'Features']:
 
-        AllLabels: query all labels of an selected instance.
+        AllLabels: query all _labels of an selected instance.
             Support scene: binary classification, multi-class classification, multi-label classification, regression
 
-        Partlabels: query part of labels of an instance.
+        Partlabels: query part of _labels of an instance.
             Support scene: multi-label classification
 
         Features: query part of features of an instance.
@@ -117,7 +117,7 @@ class ToolBox:
             self._X = check_array(X, accept_sparse='csr', ensure_2d=True, order='C')
             n_samples = self._X.shape[0]
             if n_samples != self._index_len:
-                raise ValueError("Different length of instances and labels found.")
+                raise ValueError("Different length of instances and _labels found.")
             else:
                 self._index_len = n_samples
 
@@ -136,13 +136,13 @@ class ToolBox:
             raise NotImplementedError("Query type %s is not implemented." % type)
 
         self._split = False
-        train_idx = kwargs.pop('train_idx', None)
-        test_idx = kwargs.pop('test_idx', None)
-        label_idx = kwargs.pop('label_idx', None)
-        unlabel_idx = kwargs.pop('unlabel_idx', None)
+        train_idx = kwargs.pop('_train_idx', None)
+        test_idx = kwargs.pop('_test_idx', None)
+        label_idx = kwargs.pop('_label_idx', None)
+        unlabel_idx = kwargs.pop('_unlabel_idx', None)
         if train_idx is not None and test_idx is not None and label_idx is not None and unlabel_idx is not None:
             if not (len(train_idx) == len(test_idx) == len(label_idx) == len(unlabel_idx)):
-                raise ValueError("train_idx, test_idx, label_idx, unlabel_idx "
+                raise ValueError("_train_idx, _test_idx, _label_idx, _unlabel_idx "
                                  "should have the same split count (length)")
             self._split = True
             self.train_idx = train_idx
@@ -172,7 +172,7 @@ class ToolBox:
             e.g. initial_labelset*(1-test_ratio)*n_samples
 
         split_count: int, optional (default=10)
-            random split data split_count times
+            random split data _split_count times
 
         all_class: bool, optional (default=True)
             whether each split will contain at least one instance for each class.
@@ -180,16 +180,16 @@ class ToolBox:
 
         Returns
         -------
-        train_idx: array-like
+        _train_idx: array-like
             index of training set, shape like [n_split_count, n_training_indexex]
 
-        test_idx: array-like
+        _test_idx: array-like
             index of testing set, shape like [n_split_count, n_testing_indexex]
 
-        label_idx: array-like
+        _label_idx: array-like
             index of labeling set, shape like [n_split_count, n_labeling_indexex]
 
-        unlabel_idx: array-like
+        _unlabel_idx: array-like
             index of unlabeling set, shape like [n_split_count, n_unlabeling_indexex]
 
         """
@@ -330,13 +330,13 @@ class ToolBox:
 
         Parameters
         __________
-        max_thread: int, optional (default=None)
-            The max threads for running at the same time. If not provided, it will run all rounds simultaneously.
+        __max_thread: int, optional (default=None)
+            The max __threads for running at the same time. If not provided, it will run all rounds simultaneously.
 
-        refresh_interval: float, optional (default=1.0)
+        _refresh_interval: float, optional (default=1.0)
             how many seconds to refresh the current state output, default is 1.0.
 
-        saving_path: str, optional (default='.')
+        _saving_path: str, optional (default='.')
             the path to save the result files.
         """
         if not self._instance_flag:
@@ -416,6 +416,15 @@ class AlExperiment:
     performance_metric: str, optional (default='accuracy')
         The performance metric
 
+    stopping_criteria: str, optional (default=None)
+        stopping criteria, must be one of: [None, 'num_of_queries', 'cost_limit', 'percent_of_unlabel', 'time_limit']
+
+        None: stop when no unlabeled samples available
+        'num_of_queries': stop when preset number of quiries is reached
+        'cost_limit': stop when cost reaches the limit.
+        'percent_of_unlabel': stop when specific percentage of unlabeled data pool is labeled.
+        'time_limit': stop when CPU time reaches the limit.
+
     train_idx: array-like, optional (default=None)
         index of training set, shape like [n_split_count, n_training_indexex]
 
@@ -429,7 +438,8 @@ class AlExperiment:
         index of unlabeling set, shape like [n_split_count, n_unlabeling_indexex]
     """
 
-    def __init__(self, X, y, model=SVC(), performance_metric='accuracy', **kwargs):
+    def __init__(self, X, y, model=SVC(), performance_metric='accuracy',
+                 stopping_criteria=None, stopping_value=None, **kwargs):
         self.__custom_strategy_flag = False
         self._split = False
         self._split_count = 0
@@ -439,20 +449,22 @@ class AlExperiment:
         self._performance_metric = performance_metric
 
         # set split in the initial
-        train_idx = kwargs.pop('train_idx', None)
-        test_idx = kwargs.pop('test_idx', None)
-        label_idx = kwargs.pop('label_idx', None)
-        unlabel_idx = kwargs.pop('unlabel_idx', None)
+        train_idx = kwargs.pop('_train_idx', None)
+        test_idx = kwargs.pop('_test_idx', None)
+        label_idx = kwargs.pop('_label_idx', None)
+        unlabel_idx = kwargs.pop('_unlabel_idx', None)
         if train_idx is not None and test_idx is not None and label_idx is not None and unlabel_idx is not None:
             if not (len(train_idx) == len(test_idx) == len(label_idx) == len(unlabel_idx)):
-                raise ValueError("train_idx, test_idx, label_idx, unlabel_idx "
+                raise ValueError("_train_idx, _test_idx, _label_idx, _unlabel_idx "
                                  "should have the same split count (length)")
             self._split = True
-            self.train_idx = train_idx
-            self.test_idx = test_idx
-            self.label_idx = label_idx
-            self.unlabel_idx = unlabel_idx
-            self.split_count = len(train_idx)
+            self._train_idx = train_idx
+            self._test_idx = test_idx
+            self._label_idx = label_idx
+            self._unlabel_idx = unlabel_idx
+            self._split_count = len(train_idx)
+
+        self._stopping_criterion = StoppingCriteria(stopping_criteria, stopping_value)
 
     def set_query_strategy(self, strategy="Uncertainty", **kwargs):
         """
@@ -471,7 +483,7 @@ class AlExperiment:
         """
         if callable(strategy):
             self.__custom_strategy_flag = True
-            self.query_function = strategy
+            self._query_function = strategy
             self.__custom_func_arg = kwargs
             return
         if strategy not in []:
@@ -501,13 +513,13 @@ class AlExperiment:
 
         """
         if not (len(train_idx) == len(test_idx) == len(label_idx) == len(unlabel_idx)):
-            raise ValueError("train_idx, test_idx, label_idx, unlabel_idx "
+            raise ValueError("_train_idx, _test_idx, _label_idx, _unlabel_idx "
                              "should have the same split count (length)")
         self._split = True
-        self.train_idx = train_idx
-        self.test_idx = test_idx
-        self.label_idx = label_idx
-        self.unlabel_idx = unlabel_idx
+        self._train_idx = train_idx
+        self._test_idx = test_idx
+        self._label_idx = label_idx
+        self._unlabel_idx = unlabel_idx
         self._split_count = len(train_idx)
 
     def split_AL(self, test_ratio=0.3, initial_label_rate=0.05,
@@ -524,7 +536,7 @@ class AlExperiment:
             e.g. initial_labelset*(1-test_ratio)*n_samples
 
         split_count: int, optional (default=10)
-            random split data split_count times
+            random split data _split_count times
 
         all_class: bool, optional (default=True)
             whether each split will contain at least one instance for each class.
@@ -532,10 +544,10 @@ class AlExperiment:
 
         Returns
         -------
-        train_idx: array-like
+        _train_idx: array-like
             index of training set, shape like [n_split_count, n_training_indexex]
 
-        test_idx: array-like
+        _test_idx: array-like
             index of testing set, shape like [n_split_count, n_testing_indexex]
 
         label_idx: array-like
@@ -547,14 +559,14 @@ class AlExperiment:
         """
         self._split_count = split_count
         self._split = True
-        self.train_idx, self.test_idx, self.label_idx, self.unlabel_idx = split(
+        self._train_idx, self._test_idx, self._label_idx, self._unlabel_idx = split(
             X=self._X,
             y=self._y,
             test_ratio=test_ratio,
             initial_label_rate=initial_label_rate,
             split_count=split_count,
             all_class=all_class)
-        return self.train_idx, self.test_idx, self.label_idx, self.unlabel_idx
+        return self._train_idx, self._test_idx, self._label_idx, self._unlabel_idx
 
 
     def start_query(self, multi_thread=True):
@@ -568,4 +580,18 @@ class AlExperiment:
             aceThreading()
         else:
             pass
+
+    def __al_main_loop(self, round, train_id, test_id, Lcollection, Ucollection,
+                       saver, _examples, _labels, global_parameters):
+        self._model.fit(X=self._X[Lcollection.index, :], y=self.y[Lcollection.index])
+        pred = self._model.predict(self._X[test_id, :])
+
+        # performance calc
+        accuracy = sum(pred == self._y[test_id]) / len(test_id)
+
+        saver.set_initial_point(accuracy)
+
+        while not self._stopping_criterion:
+            self._query_function.select()
+
 

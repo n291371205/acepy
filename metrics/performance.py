@@ -130,10 +130,10 @@ def accuracy_score(y_true, y_pred, sample_weight=None):
     Parameters
     ----------
     y_true : 1d array-like, or label indicator array / sparse matrix
-        Ground truth (correct) labels.
+        Ground truth (correct) _labels.
 
     y_pred : 1d array-like, or label indicator array / sparse matrix
-        Predicted labels, as returned by a classifier.
+        Predicted _labels, as returned by a classifier.
 
     sample_weight : array-like of shape = [n_samples], optional
         Sample weights.
@@ -170,7 +170,7 @@ def _average_binary_score(binary_metric, y_true, y_score, average,
     Parameters
     ----------
     y_true : array, shape = [n_samples] or [n_samples, n_classes]
-        True binary labels in binary label indicators.
+        True binary _labels in binary label indicators.
 
     y_score : array, shape = [n_samples] or [n_samples, n_classes]
         Target scores, can either be probability estimates of the positive
@@ -356,7 +356,7 @@ def roc_auc_score(y_true, y_score, average="macro", sample_weight=None,
     Parameters
     ----------
     y_true : array, shape = [n_samples] or [n_samples, n_classes]
-        True binary labels or binary label indicators.
+        True binary _labels or binary label indicators.
 
     y_score : array, shape = [n_samples] or [n_samples, n_classes]
         Target scores, can either be probability estimates of the positive
@@ -478,7 +478,7 @@ def precision_recall_fscore_support(y_true, y_pred, beta=1.0, labels=None,
         if y_type == 'binary':
             if pos_label not in present_labels:
                 if len(present_labels) < 2:
-                    # Only negative labels
+                    # Only negative _labels
                     return (0., 0., 0., 0)
                 else:
                     raise ValueError("pos_label=%r is not a valid label: %r" %
@@ -490,7 +490,7 @@ def precision_recall_fscore_support(y_true, y_pred, beta=1.0, labels=None,
     elif pos_label not in (None, 1):
         warnings.warn("Note that pos_label (set to %r) is ignored when "
                       "average != 'binary' (got %r). You may use "
-                      "labels=[pos_label] to specify a single positive class."
+                      "_labels=[pos_label] to specify a single positive class."
                       % (pos_label, average), UserWarning)
 
     if labels is None:
@@ -506,15 +506,15 @@ def precision_recall_fscore_support(y_true, y_pred, beta=1.0, labels=None,
     if y_type.startswith('multilabel'):
         sum_axis = 1 if average == 'samples' else 0
 
-        # All labels are index integers for multilabel.
-        # Select labels:
+        # All _labels are index integers for multilabel.
+        # Select _labels:
         if not np.all(labels == present_labels):
             if np.max(labels) > np.max(present_labels):
-                raise ValueError('All labels must be in [0, n labels). '
+                raise ValueError('All _labels must be in [0, n _labels). '
                                  'Got %d > %d' %
                                  (np.max(labels), np.max(present_labels)))
             if np.min(labels) < 0:
-                raise ValueError('All labels must be in [0, n labels). '
+                raise ValueError('All _labels must be in [0, n _labels). '
                                  'Got %d < 0' % np.min(labels))
 
         if n_labels is not None:
@@ -541,7 +541,7 @@ def precision_recall_fscore_support(y_true, y_pred, beta=1.0, labels=None,
         y_pred = le.transform(y_pred)
         sorted_labels = le.classes_
 
-        # labels are now from 0 to len(labels) - 1 -> use bincount
+        # _labels are now from 0 to len(_labels) - 1 -> use bincount
         tp = y_true == y_pred
         tp_bins = y_true[tp]
         if sample_weight is not None:
@@ -562,7 +562,7 @@ def precision_recall_fscore_support(y_true, y_pred, beta=1.0, labels=None,
             true_sum = np.bincount(y_true, weights=sample_weight,
                                 minlength=len(labels))
 
-        # Retain only selected labels
+        # Retain only selected _labels
         indices = np.searchsorted(sorted_labels, labels[:n_labels])
         tp_sum = tp_sum[indices]
         true_sum = true_sum[indices]
@@ -686,8 +686,8 @@ def label_ranking_loss(y_true, y_score, sample_weight=None):
 
         # if the scores are ordered, it's possible to count the number of
         # incorrectly ordered paires in linear time by cumulatively counting
-        # how many false labels of a given score have a score higher than the
-        # accumulated true labels with lower score.
+        # how many false _labels of a given score have a score higher than the
+        # accumulated true _labels with lower score.
         loss[i] = np.dot(true_at_reversed_rank.cumsum(),
                          false_at_reversed_rank)
 
@@ -695,7 +695,7 @@ def label_ranking_loss(y_true, y_score, sample_weight=None):
     with np.errstate(divide="ignore", invalid="ignore"):
         loss /= ((n_labels - n_positives) * n_positives)
 
-    # When there is no positive or no negative labels, those values should
+    # When there is no positive or no negative _labels, those values should
     # be consider as correct, i.e. the ranking doesn't matter.
     loss[np.logical_or(n_positives == 0, n_positives == n_labels)] = 0.
 

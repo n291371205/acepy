@@ -30,7 +30,7 @@ def split(X=None, y=None, instance_indexes=None, query_type=None, test_ratio=0.3
         data matrix with [n_samples, n_features]
 
     y: array-like, optional
-        labels of given data [n_samples, n_labels] or [n_samples]
+        _labels of given data [n_samples, n_labels] or [n_samples]
 
     instance_indexes: list, optional (default=None)
         list contains instances' names, used for image datasets,
@@ -48,7 +48,7 @@ def split(X=None, y=None, instance_indexes=None, query_type=None, test_ratio=0.3
         e.g. initial_labelset*(1-test_ratio)*n_samples
 
     split_count: int, optional (default=10)
-        random split data split_count times
+        random split data _split_count times
 
     all_class: bool, optional (default=True)
         whether each split will contain at least one instance for each class.
@@ -59,16 +59,16 @@ def split(X=None, y=None, instance_indexes=None, query_type=None, test_ratio=0.3
 
     Returns
     -------
-    train_idx: array-like
+    _train_idx: array-like
         index of training set, shape like [n_split_count, n_training_indexex]
 
-    test_idx: array-like
+    _test_idx: array-like
         index of testing set, shape like [n_split_count, n_testing_indexex]
 
-    label_idx: array-like
+    _label_idx: array-like
         index of labeling set, shape like [n_split_count, n_labeling_indexex]
 
-    unlabel_idx: array-like
+    _unlabel_idx: array-like
         index of unlabeling set, shape like [n_split_count, n_unlabeling_indexex]
     """
     # check parameters
@@ -78,7 +78,7 @@ def split(X=None, y=None, instance_indexes=None, query_type=None, test_ratio=0.3
                          len(instance_indexes) if instance_indexes is not None else None]
     number_of_instance = np.unique([i for i in len_of_parameters if i is not None])
     if len(number_of_instance) > 1:
-        raise ValueError("Different length of instances and labels found.")
+        raise ValueError("Different length of instances and _labels found.")
     else:
         number_of_instance = number_of_instance[0]
     if query_type is None:
@@ -157,12 +157,12 @@ def __split_data_matrix(data_matrix=None, matrix_shape=None, test_ratio=0.3, ini
     Parameters
     ----------
     data_matrix: array-like, optional
-        labels of given data, shape like [n_samples, n_labels]
+        _labels of given data, shape like [n_samples, n_labels]
 
     matrix_shape: tuple, optional (default=None)
         the shape of data_matrix, should be a tuple with 2 elements.
         The first one is the number of instances, and the other is the
-        number of labels.
+        number of _labels.
 
     test_ratio: float, optional (default=0.3)
         ratio of test set
@@ -172,7 +172,7 @@ def __split_data_matrix(data_matrix=None, matrix_shape=None, test_ratio=0.3, ini
         e.g. initial_labelset*(1-test_ratio)*n_samples
 
     split_count: int, optional (default=10)
-        random split data split_count times
+        random split data _split_count times
 
     all_class: bool, optional (default=True)
         whether each split will contain at least one instance for each class.
@@ -180,7 +180,7 @@ def __split_data_matrix(data_matrix=None, matrix_shape=None, test_ratio=0.3, ini
 
     partially_labeled: bool, optional (default=False)
         Whether split the data as partially labeled in the multi-label setting.
-        If False, the labeled set is fully labeled, otherwise, only part of labels of each
+        If False, the labeled set is fully labeled, otherwise, only part of _labels of each
         instance will be labeled initialized.
         Only available in multi-label setting.
 
@@ -189,16 +189,16 @@ def __split_data_matrix(data_matrix=None, matrix_shape=None, test_ratio=0.3, ini
 
     Returns
     -------
-    train_idx: array-like
+    _train_idx: array-like
         index of training set, shape like [n_split_count, n_training_indexex]
 
-    test_idx: array-like
+    _test_idx: array-like
         index of testing set, shape like [n_split_count, n_testing_indexex]
 
-    label_idx: array-like
+    _label_idx: array-like
         index of labeling set, shape like [n_split_count, n_labeling_indexex]
 
-    unlabel_idx: array-like
+    _unlabel_idx: array-like
         index of unlabeling set, shape like [n_split_count, n_unlabeling_indexex]
 
     """
@@ -214,7 +214,7 @@ def __split_data_matrix(data_matrix=None, matrix_shape=None, test_ratio=0.3, ini
         if not isinstance(matrix_shape, tuple) and len(matrix_shape) == 2:
             raise TypeError("the shape of data matrix should be a tuple with 2 elements."
                             "The first one is the number of instances, and the other is the"
-                            "number of labels.")
+                            "number of _labels.")
         data_shape = matrix_shape
     instance_indexes = np.arange(data_shape[0])
 
@@ -289,7 +289,7 @@ def split_features(feature_matrix=None, feature_matrix_shape=None, test_ratio=0.
     Split given feature matrix in feature querying setting.
     Giving one of feature_matrix or feature_matrix_shape to split the data.
 
-    The matrix will be split randomly in split_count times, the testing set
+    The matrix will be split randomly in _split_count times, the testing set
     is the set of instances with complete feature vectors. The training set
     has missing feature with the rate of missing_rate.
     """
@@ -329,20 +329,20 @@ def split_load(path):
     Parameters
     ----------
     path: str
-        Path to a dir which contains train_idx.txt, test_idx.txt, label_idx.txt, unlabel_idx.txt.
+        Path to a dir which contains _train_idx.txt, _test_idx.txt, _label_idx.txt, _unlabel_idx.txt.
 
     Returns
     -------
-    train_idx: array-like
+    _train_idx: array-like
         index of training set, shape like [n_split_count, n_training_samples]
 
-    test_idx: array-like
+    _test_idx: array-like
         index of testing set, shape like [n_split_count, n_testing_samples]
 
-    label_idx: array-like
+    _label_idx: array-like
         index of labeling set, shape like [n_split_count, n_labeling_samples]
 
-    unlabel_idx: array-like
+    _unlabel_idx: array-like
         index of unlabeling set, shape like [n_split_count, n_unlabeling_samples]
     """
     if not isinstance(path, str):
@@ -352,7 +352,7 @@ def split_load(path):
         raise Exception("A path to a directory is expected.")
 
     ret_arr = []
-    for fname in ['train_idx.txt', 'test_idx.txt', 'label_idx.txt', 'unlabel_idx.txt']:
+    for fname in ['_train_idx.txt', '_test_idx.txt', '_label_idx.txt', '_unlabel_idx.txt']:
         if not os.path.exists(os.path.join(saving_path, fname)):
             if os.path.exists(os.path.join(saving_path, fname.split()[0] + '.npy')):
                 ret_arr.append(np.load(os.path.join(saving_path, fname.split()[0] + '.npy')))
@@ -368,7 +368,7 @@ def split_save(train_idx, test_idx, label_idx, unlabel_idx, path):
 
     Parameters
     ----------
-    saving_path: str
+    _saving_path: str
         path to save the settings. If a dir is not provided, it will generate a folder called
         'acepy_split' for saving.
 
@@ -381,14 +381,14 @@ def split_save(train_idx, test_idx, label_idx, unlabel_idx, path):
 
     saving_path = os.path.abspath(path)
     if os.path.isdir(saving_path):
-        np.savetxt(os.path.join(saving_path, 'train_idx.txt'), train_idx)
-        np.savetxt(os.path.join(saving_path, 'test_idx.txt'), test_idx)
+        np.savetxt(os.path.join(saving_path, '_train_idx.txt'), train_idx)
+        np.savetxt(os.path.join(saving_path, '_test_idx.txt'), test_idx)
         if len(np.shape(label_idx)) == 2:
-            np.savetxt(os.path.join(saving_path, 'label_idx.txt'), label_idx)
-            np.savetxt(os.path.join(saving_path, 'unlabel_idx.txt'), unlabel_idx)
+            np.savetxt(os.path.join(saving_path, '_label_idx.txt'), label_idx)
+            np.savetxt(os.path.join(saving_path, '_unlabel_idx.txt'), unlabel_idx)
         else:
-            np.save(os.path.join(saving_path, 'label_idx.npy'), label_idx)
-            np.save(os.path.join(saving_path, 'unlabel_idx.npy'), unlabel_idx)
+            np.save(os.path.join(saving_path, '_label_idx.npy'), label_idx)
+            np.save(os.path.join(saving_path, '_unlabel_idx.npy'), unlabel_idx)
     else:
         raise Exception("A path to a directory is expected.")
 
@@ -406,9 +406,9 @@ if __name__ == '__main__':
     print(test_idx)
     print(label_idx)
     print(unlabel_idx)
-    # split_save(train_idx, test_idx, label_idx, unlabel_idx, '.')
-    # train_idx, test_idx, label_idx, unlabel_idx = split_load('.')
-    # print(train_idx)
-    # print(test_idx)
-    # print(label_idx)
-    # print(unlabel_idx)
+    # split_save(_train_idx, _test_idx, _label_idx, _unlabel_idx, '.')
+    # _train_idx, _test_idx, _label_idx, _unlabel_idx = split_load('.')
+    # print(_train_idx)
+    # print(_test_idx)
+    # print(_label_idx)
+    # print(_unlabel_idx)
