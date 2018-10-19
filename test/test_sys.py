@@ -1,218 +1,192 @@
-from sklearn import linear_model
+import copy
 from sklearn.datasets import load_iris
-
-from analyser.experiment_analyser import ExperimentAnalyser
-from data_process.al_split import split
-from experiment_saver.al_experiment import AlExperiment
 from experiment_saver.state import State
-from experiment_saver.state_io import StateIO
-from oracle.oracle import Oracle
-# QBC
-# QBC_ve
-# random
-# uncertainty
+
 from query_strategy.query_strategy import (QueryInstanceQBC,
                                            QueryInstanceUncertainty,
                                            QueryRandom)
+from query_strategy.third_party_methods import QueryInstanceQUIRE, QueryInstanceGraphDensity
 from utils.al_collections import IndexCollection
+from experiment_saver.al_experiment import ToolBox
 
-# X, y, _ = load_csv_data('C:\\Code\\altools\\dataset\\iris.csv')
 X, y = load_iris(return_X_y=True)
-Train_idx, Test_idx, L_pool, U_pool = split(X=X, y=y, test_ratio=0.3, initial_label_rate=0.2, split_count=5)
-ea = ExperimentAnalyser()
+acebox = ToolBox(X=X, y=y, query_type='AllLabels', saving_path=None)
 
+# split data
+acebox.split_AL(test_ratio=0.3, initial_label_rate=0.1, split_count=10)
 
-qs = QueryInstanceUncertainty(X, y)
-oracle = Oracle(y)
+# use the default SVM classifier
+model = acebox.default_model()
 
-reg = linear_model.LogisticRegression()
-ae = AlExperiment(method_name='uncertainty')
+# query 50 times
+stopping_criterion = acebox.stopping_criterion('num_of_queries', 50)
 
-for round in range(5):
-    train_id = Train_idx[round]
-    test_id = Test_idx[round]
-    Ucollection = IndexCollection(U_pool[round])
-    Lcollection = IndexCollection(L_pool[round])
-    # sup_db = KnowledgeDB(Lcollection, y)
+# use pre-defined strategy, The data matrix is a reference which will not use additional space
+QBCStrategy = QueryInstanceQBC(X, y)
+randomStrategy = QueryRandom()
+uncertainStrategy = QueryInstanceUncertainty(X, y)
+QUIREStrategy = QueryInstanceQUIRE(X, y)
 
-    # initialize object
-    reg.fit(X=X[Lcollection.index, :], y=y[Lcollection.index])
-    pred = reg.predict(X[test_id, :])
-    accuracy = sum(pred == y[test_id]) / len(test_id)
-    # initialize StateIO module
-    saver = StateIO(round, train_id, test_id, Lcollection, Ucollection, initial_point=accuracy)
-    # saver = StateIO(round, train_id, test_id, Ucollection, Lcollection)
-    while len(Ucollection) > 10:
-        select_index = qs.select(Lcollection, Ucollection, reg)
-        # accerlate version is available
-        # sub_U = Ucollection.random_sampling()
-        values, costs = oracle.query_by_index(select_index)
-        Ucollection.difference_update(select_index)
-        Lcollection.update(select_index)
-        # db is optional
-        # sup_db.update_query(select_index,values,costs)
-        # reg.fit(X=X[Lcollection.index,:], y=sup_db.get_supervise_info(Lcollection))
+QBC_result = []
+for round in range(10):
+    train_idx, test_idx, Lind, Uind = acebox.get_split(round)
+    saver = acebox.StateIO(round)
 
-        # update model
-        reg.fit(X=X[Lcollection.index, :], y=y[Lcollection.index])
-        pred = reg.predict(X[test_id, :])
-        accuracy = sum(pred == y[test_id]) / len(test_id)
+    # calc the initial point
+    model.fit(X=X[Lind.index, :], y=y[Lind.index])
+    pred = model.predict(X[test_idx, :])
+    accuracy = sum(pred == y[test_idx]) / len(test_idx)
 
-        # save intermediate results
-        st = State(select_index=select_index, queried_label=values, cost=costs, performance=accuracy)
-        # add user defined information
-        # st.add_element(key='sub_ind', value=sub_ind)
+    saver.set_initial_point(accuracy)
+    while not stopping_criterion.is_stop():
+        select_ind = QBCStrategy.select(Lind, Uind, model=model)
+        Lind.update(select_ind)
+        Uind.difference_update(select_ind)
+
+        # update model and calc performance
+        model.fit(X=X[Lind.index, :], y=y[Lind.index])
+        pred = model.predict(X[test_idx,:])
+        accuracy = sum(pred == y[test_idx]) / len(test_idx)
+
+        # save intermediate result
+        st = State(select_index=select_ind, performance=accuracy)
         saver.add_state(st)
         saver.save()
 
-        # get State and workspace
-        # stored queried instances, labels, costs, performance and user defined items
-        # using like a dict
-        # st = saver.get_state(5)
-        # Lcollection, Ucollection = saver.get_workspace(5)
-    ae.add_fold(saver)
-ea.add_method(ae)
+        # update stopping_criteria
+        stopping_criterion.update_information(saver)
+    stopping_criterion.reset()
+    QBC_result.append(copy.deepcopy(saver))
 
+random_result = []
+for round in range(10):
+    train_idx, test_idx, Lind, Uind = acebox.get_split(round)
+    saver = acebox.StateIO(round)
 
-qs = QueryRandom()
-ae = AlExperiment(method_name='random')
+    # calc the initial point
+    model.fit(X=X[Lind.index, :], y=y[Lind.index])
+    pred = model.predict(X[test_idx, :])
+    accuracy = sum(pred == y[test_idx]) / len(test_idx)
 
-for round in range(5):
-    train_id = Train_idx[round]
-    test_id = Test_idx[round]
-    Ucollection = IndexCollection(U_pool[round])
-    Lcollection = IndexCollection(L_pool[round])
-    # sup_db = KnowledgeDB(Lcollection, y)
+    saver.set_initial_point(accuracy)
+    while not stopping_criterion.is_stop():
+        select_ind = randomStrategy.select(Lind, Uind)
+        Lind.update(select_ind)
+        Uind.difference_update(select_ind)
 
-    # initialize object
-    reg.fit(X=X[Lcollection.index, :], y=y[Lcollection.index])
-    pred = reg.predict(X[test_id, :])
-    accuracy = sum(pred == y[test_id]) / len(test_id)
-    saver = StateIO(round, train_id, test_id, Lcollection, Ucollection, initial_point=accuracy)
-    while len(Ucollection) > 10:
-        select_index = qs.select(None, Ucollection)
-        # accerlate version is available
-        # sub_U = Ucollection.random_sampling()
-        values, costs = oracle.query_by_index(select_index)
-        Ucollection.difference_update(select_index)
-        Lcollection.update(select_index)
-        # db is optional
-        # sup_db.update_query(select_index,values,costs)
-        # reg.fit(X=X[Lcollection.index,:], y=sup_db.get_supervise_info(Lcollection))
+        # update model and calc performance
+        model.fit(X=X[Lind.index, :], y=y[Lind.index])
+        pred = model.predict(X[test_idx, :])
+        accuracy = sum(pred == y[test_idx]) / len(test_idx)
 
-        # update model
-        reg.fit(X=X[Lcollection.index, :], y=y[Lcollection.index])
-        pred = reg.predict(X[test_id, :])
-        accuracy = sum(pred == y[test_id]) / len(test_id)
-
-        # save intermediate results
-        st = State(select_index=select_index, queried_label=values, cost=costs, performance=accuracy)
-        # add user defined information
-        # st.add_element(key='sub_ind', value=sub_ind)
+        # save intermediate result
+        st = State(select_index=select_ind, performance=accuracy)
         saver.add_state(st)
         saver.save()
 
-        # get State and workspace
-        # stored queried instances, labels, costs, performance and user defined items
-        # using like a dict
-        # st = saver.get_state(5)
-        # Lcollection, Ucollection = saver.get_workspace(5)
-    ae.add_fold(saver)
-ea.add_method(ae)
+        # update stopping_criteria
+        stopping_criterion.update_information(saver)
+    stopping_criterion.reset()
+    random_result.append(copy.deepcopy(saver))
 
+uncertainty_result = []
+for round in range(10):
+    train_idx, test_idx, Lind, Uind = acebox.get_split(round)
+    saver = acebox.StateIO(round)
 
-qs = QueryInstanceQBC(X,y,disagreement='vote_entropy')
-ae = AlExperiment(method_name='QBC_ve')
+    # calc the initial point
+    model.fit(X=X[Lind.index, :], y=y[Lind.index])
+    pred = model.predict(X[test_idx, :])
+    accuracy = sum(pred == y[test_idx]) / len(test_idx)
 
-for round in range(5):
-    train_id = Train_idx[round]
-    test_id = Test_idx[round]
-    Ucollection = IndexCollection(U_pool[round])
-    Lcollection = IndexCollection(L_pool[round])
-    # sup_db = KnowledgeDB(Lcollection, y)
+    saver.set_initial_point(accuracy)
+    while not stopping_criterion.is_stop():
+        select_ind = uncertainStrategy.select(Lind, Uind, model=model)
+        Lind.update(select_ind)
+        Uind.difference_update(select_ind)
 
-    # initialize object
-    reg.fit(X=X[Lcollection.index, :], y=y[Lcollection.index])
-    pred = reg.predict(X[test_id, :])
-    accuracy = sum(pred == y[test_id]) / len(test_id)
-    saver = StateIO(round, train_id, test_id, Lcollection, Ucollection, initial_point=accuracy)
-    while len(Ucollection) > 10:
-        select_index = qs.select(Lcollection, Ucollection, reg)
-        # accerlate version is available
-        # sub_U = Ucollection.random_sampling()
-        values, costs = oracle.query_by_index(select_index)
-        Ucollection.difference_update(select_index)
-        Lcollection.update(select_index)
-        # db is optional
-        # sup_db.update_query(select_index,values,costs)
-        # reg.fit(X=X[Lcollection.index,:], y=sup_db.get_supervise_info(Lcollection))
+        # update model and calc performance
+        model.fit(X=X[Lind.index, :], y=y[Lind.index])
+        pred = model.predict(X[test_idx, :])
+        accuracy = sum(pred == y[test_idx]) / len(test_idx)
 
-        # update model
-        reg.fit(X=X[Lcollection.index, :], y=y[Lcollection.index])
-        pred = reg.predict(X[test_id, :])
-        accuracy = sum(pred == y[test_id]) / len(test_id)
-
-        # save intermediate results
-        st = State(select_index=select_index, queried_label=values, cost=costs, performance=accuracy)
-        # add user defined information
-        # st.add_element(key='sub_ind', value=sub_ind)
+        # save intermediate result
+        st = State(select_index=select_ind, performance=accuracy)
         saver.add_state(st)
         saver.save()
 
-        # get State and workspace
-        # stored queried instances, labels, costs, performance and user defined items
-        # using like a dict
-        # st = saver.get_state(5)
-        # Lcollection, Ucollection = saver.get_workspace(5)
-    ae.add_fold(saver)
-ea.add_method(ae)
+        # update stopping_criteria
+        stopping_criterion.update_information(saver)
+    stopping_criterion.reset()
+    uncertainty_result.append(copy.deepcopy(saver))
 
-qs = QueryInstanceQBC(X,y,disagreement='KL_divergence')
-ae = AlExperiment(method_name='QBC_kl')
+QUIRE_result = []
+for round in range(10):
+    train_idx, test_idx, Lind, Uind = acebox.get_split(round)
+    saver = acebox.StateIO(round)
 
-for round in range(5):
-    train_id = Train_idx[round]
-    test_id = Test_idx[round]
-    Ucollection = IndexCollection(U_pool[round])
-    Lcollection = IndexCollection(L_pool[round])
-    # sup_db = KnowledgeDB(Lcollection, y)
+    # calc the initial point
+    model.fit(X=X[Lind.index, :], y=y[Lind.index])
+    pred = model.predict(X[test_idx, :])
+    accuracy = sum(pred == y[test_idx]) / len(test_idx)
 
-    # initialize object
-    reg.fit(X=X[Lcollection.index, :], y=y[Lcollection.index])
-    pred = reg.predict(X[test_id, :])
-    accuracy = sum(pred == y[test_id]) / len(test_id)
-    saver = StateIO(round, train_id, test_id, Lcollection, Ucollection, initial_point=accuracy)
-    while len(Ucollection) > 10:
-        select_index = qs.select(Lcollection, Ucollection, reg)
-        # accerlate version is available
-        # sub_U = Ucollection.random_sampling()
-        values, costs = oracle.query_by_index(select_index)
-        Ucollection.difference_update(select_index)
-        Lcollection.update(select_index)
-        # db is optional
-        # sup_db.update_query(select_index,values,costs)
-        # reg.fit(X=X[Lcollection.index,:], y=sup_db.get_supervise_info(Lcollection))
+    saver.set_initial_point(accuracy)
+    while not stopping_criterion.is_stop():
+        select_ind = QUIREStrategy.select(Lind, Uind)
+        Lind.update(select_ind)
+        Uind.difference_update(select_ind)
 
-        # update model
-        reg.fit(X=X[Lcollection.index, :], y=y[Lcollection.index])
-        pred = reg.predict(X[test_id, :])
-        accuracy = sum(pred == y[test_id]) / len(test_id)
+        # update model and calc performance
+        model.fit(X=X[Lind.index, :], y=y[Lind.index])
+        pred = model.predict(X[test_idx, :])
+        accuracy = sum(pred == y[test_idx]) / len(test_idx)
 
-        # save intermediate results
-        st = State(select_index=select_index, queried_label=values, cost=costs, performance=accuracy)
-        # add user defined information
-        # st.add_element(key='sub_ind', value=sub_ind)
+        # save intermediate result
+        st = State(select_index=select_ind, performance=accuracy)
         saver.add_state(st)
         saver.save()
 
-        # get State and workspace
-        # stored queried instances, labels, costs, performance and user defined items
-        # using like a dict
-        # st = saver.get_state(5)
-        # Lcollection, Ucollection = saver.get_workspace(5)
-    ae.add_fold(saver)
-ea.add_method(ae)
+        # update stopping_criteria
+        stopping_criterion.update_information(saver)
+    stopping_criterion.reset()
+    QUIRE_result.append(copy.deepcopy(saver))
 
-print(ea)
-# result analyse module
-ea.simple_plot()
+# density_result = []
+# for round in range(10):
+#     train_idx, test_idx, Lind, Uind = acebox.get_split(round)
+#     saver = acebox.StateIO(round)
+#     densityStrategy = QueryInstanceGraphDensity(X, y, train_idx=train_idx)
+#
+#     # calc the initial point
+#     model.fit(X=X[Lind.index, :], y=y[Lind.index])
+#     pred = model.predict(X[test_idx, :])
+#     accuracy = sum(pred == y[test_idx]) / len(test_idx)
+#
+#     saver.set_initial_point(accuracy)
+#     while not stopping_criterion.is_stop():
+#         select_ind = densityStrategy.select(Lind, Uind)
+#         Lind.update(select_ind)
+#         Uind.difference_update(select_ind)
+#
+#         # update model and calc performance
+#         model.fit(X=X[Lind.index, :], y=y[Lind.index])
+#         pred = model.predict(X[test_idx, :])
+#         accuracy = sum(pred == y[test_idx]) / len(test_idx)
+#
+#         # save intermediate result
+#         st = State(select_index=select_ind, performance=accuracy)
+#         saver.add_state(st)
+#         saver.save()
+#
+#         # update stopping_criteria
+#         stopping_criterion.update_information(saver)
+#     stopping_criterion.reset()
+#     density_result.append(copy.deepcopy(saver))
+
+analyser = acebox.experiment_analyser()
+analyser.add_method(QBC_result, 'QBC')
+analyser.add_method(random_result, 'random')
+analyser.add_method(uncertainty_result, 'uncertainty')
+analyser.add_method(QUIRE_result, 'QUIRE')
+print(analyser)
+analyser.simple_plot(title='Iris')

@@ -18,12 +18,6 @@ from utils.ace_warnings import *
 from utils.base import BaseDB
 from utils.tools import _is_arraylike
 
-"Using a factory class to generate the appropriate DB"
-
-
-class KnowledgeDB:
-    pass
-
 
 class ElementKnowledgeDB(BaseDB):
     """Class to store fine-grained (element-wise) data.
@@ -40,7 +34,7 @@ class ElementKnowledgeDB(BaseDB):
             raise TypeError("An array like parameter is expected.")
         if not _is_arraylike(indexes):
             raise TypeError("An array like parameter is expected.")
-        # self._y = copy.copy(labels)
+        # self._y = copy.copy(_labels)
         self._index_len = len(labels)
         if len(indexes) != self._index_len:
             raise ValueError("Length of given instance_indexes do not accord the data set.")
@@ -50,10 +44,10 @@ class ElementKnowledgeDB(BaseDB):
         else:
             if not _is_arraylike(examples):
                 raise TypeError("An array like parameter is expected.")
-            # self._X = copy.copy(examples)
+            # self._X = copy.copy(_examples)
             n_samples = len(examples)
             if n_samples != self._index_len:
-                raise ValueError("Different length of instances and labels found.")
+                raise ValueError("Different length of instances and _labels found.")
             self._instance_flag = True
 
         # several _indexes construct
@@ -125,7 +119,7 @@ class ElementKnowledgeDB(BaseDB):
             self._indexes.pop(index)
         if example is not None:
             if not self._instance_flag:
-                raise Exception("This data base is not initialized with examples, discard by example is illegal.")
+                raise Exception("This data base is not initialized with _examples, discard by example is illegal.")
             else:
                 if example not in self._exa2ind:
                     warnings.warn("example %s is not in the data base, skipped." % str(example),
@@ -145,7 +139,7 @@ class ElementKnowledgeDB(BaseDB):
         Parameters
         ----------
         labels: array-like or object
-            labels to be updated.
+            _labels to be updated.
 
         indexes: array-like or object
             if multiple example-label pairs are provided, it should be a list or np.ndarray type
@@ -155,7 +149,7 @@ class ElementKnowledgeDB(BaseDB):
             cost corresponds to the query.
 
         examples: array-like or object
-            examples to be updated.
+            _examples to be updated.
         """
         if not isinstance(indexes, (list, np.ndarray)):
             self.add(labels, indexes, examples, cost)
@@ -200,12 +194,12 @@ class ElementKnowledgeDB(BaseDB):
         return example_arr, label_arr
 
     def retrieve_by_examples(self, examples):
-        """retrieve by examples
+        """retrieve by _examples
 
         Parameters
         ----------
         examples: array-like or object
-            if 2 or more examples to retrieve, a 2D array is expected
+            if 2 or more _examples to retrieve, a 2D array is expected
             otherwise, it will be treated as only one index.
 
         Returns
@@ -229,7 +223,7 @@ class ElementKnowledgeDB(BaseDB):
         return self.retrieve_by_indexes(q_id)
 
     def get_examples(self):
-        """Get all examples in the data base
+        """Get all _examples in the data base
 
         If this object is a MatrixKnowledgeDB, it will return the feature matrix,
         otherwise, A dict will be returned.
@@ -237,7 +231,7 @@ class ElementKnowledgeDB(BaseDB):
         return [self._ind2exa[i] for i in self._indexes]
 
     def get_labels(self, *args):
-        """Get all labels in the data base
+        """Get all _labels in the data base
 
         If this object is a MatrixKnowledgeDB, it will return the label matrix,
         otherwise, unknown elements will be set to a specific value (query a single label in multi-label setting).
@@ -271,7 +265,7 @@ class ElementKnowledgeDB(BaseDB):
         return str(tb)
 
 
-# this class can only deal with the query-all-labels setting
+# this class can only deal with the query-all-_labels setting
 class MatrixKnowledgeDB(BaseDB):
     """Knowledge DataBase.
 
@@ -286,11 +280,11 @@ class MatrixKnowledgeDB(BaseDB):
         label matrix. shape like [n_samples, n_classes] or [n_samples]
 
     indexes: array-like
-        index of examples, should have the same length
+        index of _examples, should have the same length
         and is one-to-one correspondence of y.
 
     examples: array-like, optional (default=None)
-        array of examples, initialize with this parameter to make
+        array of _examples, initialize with this parameter to make
         "query by instance" available. Shape like [n_samples, n_features]
 
     Examples
@@ -318,7 +312,7 @@ class MatrixKnowledgeDB(BaseDB):
             self._X = check_array(examples, accept_sparse='csr', ensure_2d=True, order='C')
             n_samples = self._X.shape[0]
             if n_samples != self._index_len:
-                raise ValueError("Different length of instances and labels found.")
+                raise ValueError("Different length of instances and _labels found.")
 
         # record
         self.cost_inall = 0
@@ -364,7 +358,7 @@ class MatrixKnowledgeDB(BaseDB):
         self.cost_inall += np.sum(cost)
         if self._instance_flag:
             if example is None:
-                raise Exception("Example must be provided in a database initialized with examples.")
+                raise Exception("Example must be provided in a database initialized with _examples.")
             else:
                 self._X = np.append(self._X, [example], axis=0)
         return self
@@ -375,7 +369,7 @@ class MatrixKnowledgeDB(BaseDB):
         Parameters
         ----------
         labels: array-like or object
-            labels to be updated.
+            _labels to be updated.
 
         indexes: array-like or object
             if multiple example-label pairs are provided, it should be a list or np.ndarray type
@@ -385,7 +379,7 @@ class MatrixKnowledgeDB(BaseDB):
             cost corresponds to the query.
 
         examples: array-like or object
-            examples to be updated.
+            _examples to be updated.
         """
         if not isinstance(indexes, (list, np.ndarray)):
             self.add(labels, indexes, cost, examples)
@@ -411,7 +405,7 @@ class MatrixKnowledgeDB(BaseDB):
             ind = np.argwhere(self._indexes == index)
         if example is not None:
             if not self._instance_flag:
-                raise Exception("This data base is not initialized with examples, discard by example is illegal.")
+                raise Exception("This data base is not initialized with _examples, discard by example is illegal.")
             else:
                 ind = np.argwhere(self._X == example)
         mask = np.ones(len(self._indexes), dtype=bool)
@@ -449,12 +443,12 @@ class MatrixKnowledgeDB(BaseDB):
                 return self._X[ind,] if self._instance_flag else None, self._y[ind,]
 
     def retrieve_by_examples(self, examples):
-        """retrieve by examples
+        """retrieve by _examples
 
         Parameters
         ----------
         examples: array-like or object
-            if 2 or more examples to retrieve, a 2D array is expected
+            if 2 or more _examples to retrieve, a 2D array is expected
             otherwise, it will be treated as only one index.
 
         Returns
@@ -463,7 +457,7 @@ class MatrixKnowledgeDB(BaseDB):
             the retrieved data
         """
         if not self._instance_flag:
-            raise Exception("This data base is not initialized with examples, retrieve by example is illegal.")
+            raise Exception("This data base is not initialized with _examples, retrieve by example is illegal.")
         examples = np.asarray(examples)
         if examples.ndim == 1:
             ind = np.argwhere(self._X == examples).flatten()  # will return empty array if not found.
@@ -474,13 +468,13 @@ class MatrixKnowledgeDB(BaseDB):
                 for ins in self._X:
                     if np.all(ins == examples[i]):
                         ind.append(i)
-            # ind = [np.argwhere(self._X == examples[i]).flatten() for i in range(len(examples))]
+            # ind = [np.argwhere(self._X == _examples[i]).flatten() for i in range(len(_examples))]
             return self._X[ind, ], self._y[ind, ]
         else:
             raise Exception("A 1D or 2D array is expected. But received: %d" % examples.ndim)
 
     def get_examples(self):
-        """Get all examples in the data base
+        """Get all _examples in the data base
 
         If this object is a MatrixKnowledgeDB, it will return the feature matrix,
         otherwise, A dict will be returned.
@@ -491,7 +485,7 @@ class MatrixKnowledgeDB(BaseDB):
             return None
 
     def get_labels(self):
-        """Get all labels in the data base
+        """Get all _labels in the data base
 
         If this object is a MatrixKnowledgeDB, it will return the label matrix,
         otherwise, unknown elements will be set to a specific value (query a single label in multi-label setting).

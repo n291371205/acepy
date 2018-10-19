@@ -13,7 +13,7 @@ def check_query_type(type):
 
     Only the following query types are allowed:
         AllowedType:
-            AllLabels: Query all labels of an instance
+            AllLabels: Query all _labels of an instance
             PartLabels: Query part of labels of an instance (Only available in multi-label setting)
             Features: Query unlab_features of instances
         NotImplementedQueryType
@@ -66,7 +66,7 @@ class QueryConfig():
     def __init__(self, query_type=None, datamat=None, label=None):
         if query_type is None:
             query_type = ['instance', 'all_labels']
-        if query_type[0] not in ['instance', 'labels'] or query_type[1] not in ['instance', 'all_labels', 'part_labels', 'all_features', 'part_features']:
+        if query_type[0] not in ['instance', '_labels'] or query_type[1] not in ['instance', 'all_labels', 'part_labels', 'all_features', 'part_features']:
             raise NotImplemented(
                 "%s is not Implemented" % (str(query_type)))
 

@@ -29,11 +29,11 @@ class Oracle(utils.base.BaseVirtualOracle):
         label matrix. shape like [n_samples, n_classes] or [n_samples]
 
     examples: array-like, optional (default=None)
-        array of examples, initialize with this parameter to make
+        array of _examples, initialize with this parameter to make
         "query by instance" available. Shape like [n_samples, n_features]
 
     indexes: array-like, optional (default=None)
-        index of examples, if not provided, it will be generated
+        index of _examples, if not provided, it will be generated
         automatically started from 0.
 
     cost: array_like, optional (default=None)
@@ -41,7 +41,7 @@ class Oracle(utils.base.BaseVirtualOracle):
         and is one-to-one correspondence of y, default is 1.
     """
 
-    def __init__(self, labels, examples=None, indexes=None, cost=None):
+    def __init__(self, labels: object, examples: object = None, indexes: object = None, cost: object = None) -> object:
         labels = check_array(labels, ensure_2d=False, dtype=None)
         if isinstance(labels[0], np.generic):
             self._label_type = type(np.asscalar(labels[0]))
@@ -67,10 +67,10 @@ class Oracle(utils.base.BaseVirtualOracle):
             self._instance_flag = False
         else:
             if not (len(examples) == len(labels)):
-                raise ValueError("Different length of labels and instances detected.")
+                raise ValueError("Different length of _labels and instances detected.")
             self._instance_flag = True
         if not (len(self._indexes) == len(labels)):
-            raise ValueError("Different length of labels and indexes detected.")
+            raise ValueError("Different length of _labels and indexes detected.")
 
         # several _indexes construct
         if self._instance_flag:
@@ -107,10 +107,10 @@ class Oracle(utils.base.BaseVirtualOracle):
             label matrix.
 
         index: object
-            index of examples, should not in the oracle.
+            index of _examples, should not in the oracle.
 
         example: array-like, optional (default=None)
-            array of examples, initialize with this parameter to turn
+            array of _examples, initialize with this parameter to turn
             "query by instance" on.
 
         cost: array_like, optional (default=None)
@@ -122,7 +122,7 @@ class Oracle(utils.base.BaseVirtualOracle):
         if isinstance(label, list):
             label = np.array(label)
         if not isinstance(label, self._label_type):
-            raise TypeError("Different types of labels found when adding entries: %s is expected but received: %s" %
+            raise TypeError("Different types of _labels found when adding entries: %s is expected but received: %s" %
                             (str(self._label_type), str(type(label))))
         if self._instance_flag:
             if example is None:
@@ -141,7 +141,7 @@ class Oracle(utils.base.BaseVirtualOracle):
         """Adding entries to the oracle.
 
         Add new entries to the oracle for future querying where _indexes are the queried elements,
-        labels are the returned data. Indexes should not be in the oracle. Examples and cost should
+        _labels are the returned data. Indexes should not be in the oracle. Examples and cost should
         accord with the initializing (If exists in initializing, then must be provided.)
 
         Parameters
@@ -150,12 +150,12 @@ class Oracle(utils.base.BaseVirtualOracle):
             label matrix.
 
         indexes: array-like or object
-            index of examples, should not in the oracle.
+            index of _examples, should not in the oracle.
             if update multiple entries to the oracle, a list or np.ndarray type is expected,
             otherwise, it will be cheated as only one entry.
 
         examples: array-like, optional (default=None)
-            array of examples, initialize with this parameter to turn
+            array of _examples, initialize with this parameter to turn
             "query by instance" on.
 
         cost: array_like, optional (default=None)
@@ -299,14 +299,14 @@ class Oracle(utils.base.BaseVirtualOracle):
 
 
 class OracleQueryInstance(Oracle):
-    """Oracle to label all labels of an instance.
+    """Oracle to label all _labels of an instance.
     """
 
 
 class OracleQueryMultiLabel(Oracle):
-    """Oracle to label part of labels of instance in multi-label setting.
+    """Oracle to label part of _labels of instance in multi-label setting.
 
-    When initializing, a 2D array of labels and cost of EACH label should be given.
+    When initializing, a 2D array of _labels and cost of EACH label should be given.
 
     Parameters
     ----------
@@ -314,11 +314,11 @@ class OracleQueryMultiLabel(Oracle):
         label matrix. Shape like [n_samples, n_classes]
 
     examples: array-like, optional (default=None)
-        array of examples, initialize with this parameter to make
+        array of _examples, initialize with this parameter to make
         "query by instance" available. Shape like [n_samples, n_features]
 
     indexes: array-like, optional (default=None)
-        index of examples, if not provided, it will be generated
+        index of _examples, if not provided, it will be generated
         automatically started from 0.
 
     cost: array_like, optional (default=None)
@@ -330,12 +330,12 @@ class OracleQueryMultiLabel(Oracle):
     def __init__(self, labels, examples=None, indexes=None, cost=None):
         labels = check_array(labels, ensure_2d=True, dtype=None)
         self._label_shape = np.shape(labels)
-        super().__init__(labels, examples, indexes, cost)
+        super(OracleQueryMultiLabel, self).__init__(labels, examples, indexes, cost)
         if self._cost_flag:
             if np.shape(cost) != np.shape(labels):
-                raise ValueError("Different shapes of cost and labels found. Cost of each queried"
+                raise ValueError("Different shapes of cost and _labels found. Cost of each queried"
                                  " instance should be one-to-one correspondence of each label.\n"
-                                 "Shape of labels:%s\nShape of cost:%s" % (str(np.shape(labels)), str(np.shape(cost))))
+                                 "Shape of _labels:%s\nShape of cost:%s" % (str(np.shape(labels)), str(np.shape(cost))))
 
     def _add_one_entry(self, label, index, example=None, cost=None):
         """Adding entry to the oracle.
@@ -350,10 +350,10 @@ class OracleQueryMultiLabel(Oracle):
             label matrix.
 
         index: int
-            index of examples, should not in the oracle.
+            index of _examples, should not in the oracle.
 
         example: array-like, optional (default=None)
-            array of examples, initialize with this parameter to turn
+            array of _examples, initialize with this parameter to turn
             "query by instance" on.
 
         cost: array_like, optional (default=None)
@@ -362,7 +362,7 @@ class OracleQueryMultiLabel(Oracle):
         """
         if len(label) != self._label_shape[1]:
             raise ValueError(
-                "Different dimension of labels found when adding entries: %s is expected but received: %s" %
+                "Different dimension of _labels found when adding entries: %s is expected but received: %s" %
                 (str(self._label_shape[1]), str(len(label))))
         if self._instance_flag:
             if example is None:
@@ -385,8 +385,8 @@ class OracleQueryMultiLabel(Oracle):
         """Query function in multi-label setting
 
         In multi-label setting, a query index is a tuple.
-        A single index should only have 1 element (example_index, ) to query all labels or
-        2 elements (example_index, [label_indexes]) to query specific labels.
+        A single index should only have 1 element (example_index, ) to query all _labels or
+        2 elements (example_index, [label_indexes]) to query specific _labels.
         A list of index can be provided.
 
         Parameters
@@ -394,14 +394,14 @@ class OracleQueryMultiLabel(Oracle):
         indexes: list or tuple or int
             index to query, if only one index to query (batch_size = 1),a tuple or an int is expected.
             e.g., in 10 class classification setting, queried_index = (1, [3,4])
-            means query the 2nd instance's 4th,5th labels.
-            some legal single index examples:
+            means query the 2nd instance's 4th,5th _labels.
+            some legal single index _examples:
             queried_index = (1, [3,4])
             queried_index = (1, [3])
             queried_index = (1, 3)
             queried_index = (1, (3))
             queried_index = (1, (3,4))
-            queried_index = (1, )   # query all labels
+            queried_index = (1, )   # query all _labels
 
             One or more indexes could be provided.
 
@@ -422,7 +422,7 @@ class OracleQueryMultiLabel(Oracle):
         if not datatype.popitem()[0] == tuple:
             raise TypeError("Each index should be a tuple.")
 
-        # prepare queried labels
+        # prepare queried _labels
         sup_info = []
         costs = []
         for k in indexes:
@@ -430,8 +430,8 @@ class OracleQueryMultiLabel(Oracle):
             k_len = len(k)
             if k_len != 1 and k_len != 2:
                 raise ValueError(
-                    "A single index should only have 1 element (example_index, ) to query all labels or"
-                    "2 elements (example_index, [label_indexes]) to query specific labels. But found %d in %s" %
+                    "A single index should only have 1 element (example_index, ) to query all _labels or"
+                    "2 elements (example_index, [label_indexes]) to query specific _labels. But found %d in %s" %
                     (len(k), str(k)))
             example_ind = k[0]
             if k_len == 1:
@@ -462,8 +462,8 @@ class OracleQueryMultiLabel(Oracle):
         data matrix.
 
         In multi-label setting, a query index is a tuple.
-        A single index should only have 1 element (feature_vector, ) to query all labels or
-        2 elements (feature_vector, [label_indexes]) to query specific labels.
+        A single index should only have 1 element (feature_vector, ) to query all _labels or
+        2 elements (feature_vector, [label_indexes]) to query specific _labels.
         A list of index can be provided.
 
         Parameters
@@ -491,8 +491,8 @@ class OracleQueryMultiLabel(Oracle):
             k_len = len(k)
             if k_len != 1 and k_len != 2:
                 raise ValueError(
-                    "A single index should only have 1 element (feature_vector, ) to query all labels or"
-                    "2 elements (feature_vector, [label_indexes]) to query specific labels. But found %d in %s" %
+                    "A single index should only have 1 element (feature_vector, ) to query all _labels or"
+                    "2 elements (feature_vector, [label_indexes]) to query specific _labels. But found %d in %s" %
                     (len(k), str(k)))
             example_fea = k[0]
 
@@ -584,7 +584,7 @@ class Oracles:
             display_dict[key] = [0, 0]
         for query in self.query_history:
             # query is a triplet: (oracle_name, result, index_for_querying)
-            # types of elements are: (str, [[labels], [cost]], [indexes])
+            # types of elements are: (str, [[_labels], [cost]], [indexes])
             display_dict[query[0]][0] += 1
             display_dict[query[0]][1] += np.sum([np.sum(query[1][1][i]) for i in range(len(query[1][1]))])
 
@@ -623,11 +623,11 @@ class OracleQueryFeatures(OracleQueryMultiLabel):
     Parameters
     ----------
     feature_mat: array-like
-        array of examples, initialize with this parameter to make
+        array of _examples, initialize with this parameter to make
         "query by instance" available. Shape like [n_samples, n_features]
 
     indexes: array-like, optional (default=None)
-        index of examples, if not provided, it will be generated
+        index of _examples, if not provided, it will be generated
         automatically started from 0.
 
     cost: array_like, optional (default=None)
@@ -647,9 +647,9 @@ if __name__ == '__main__':
 
     # a = Oracle([[1, 2, 3], [4, 5, 6]])
     # print(a.query_by_index(1))
-    # a.add_knowledge(labels=[0, 2, 1], indexes=2)
+    # a.add_knowledge(_labels=[0, 2, 1], indexes=2)
     # print(a.query_by_index([2]))
-    # a.add_knowledge(labels=[[1, 2, 3], [4, 5, 6]], indexes=[3, 4])
+    # a.add_knowledge(_labels=[[1, 2, 3], [4, 5, 6]], indexes=[3, 4])
     # print(a.query_by_index([4]))
 
     b = OracleQueryMultiLabel([[1, 2, 3], [4, 5, 6]])

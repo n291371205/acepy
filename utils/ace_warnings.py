@@ -6,6 +6,9 @@ class RepeatElementWarning(UserWarning):
     if contains repeated elements.
     """
 
+class InexistentElementWarning(UserWarning):
+    """If attempt to manipulate inexistent element"""
+
 
 class UnexpectedParameterWarning(UserWarning):
     """

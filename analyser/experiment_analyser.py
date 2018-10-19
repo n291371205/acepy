@@ -15,7 +15,6 @@ import numpy as np
 import scipy.stats
 import scipy.io as scio
 
-import experiment_saver.al_experiment
 from utils.ace_warnings import *
 
 
@@ -309,7 +308,7 @@ class ExperimentAnalyser:
                     i, str(np.argwhere(np.isinf(self.__result_data[i]) == True))))
         return True
 
-    def simple_plot(self, xlabel='queries', ylabel='performance', saving_path='.'):
+    def simple_plot(self, xlabel='queries', ylabel='performance', title=None, saving_path='.'):
         """plotting the performance curves.
 
         Parameters
@@ -331,6 +330,8 @@ class ExperimentAnalyser:
         plt.legend()
         plt.xlabel("Number of queries")
         plt.ylabel("Performance")
+        if title is not None:
+            plt.title(str(title))
         if saving_path is not None:
             saving_path = os.path.abspath(saving_path)
             if os.path.isdir(saving_path):

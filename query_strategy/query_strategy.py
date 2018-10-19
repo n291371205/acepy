@@ -11,7 +11,9 @@ import collections
 import warnings
 
 import numpy as np
+from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
+from utils.al_collections import IndexCollection
 import utils.base
 import utils.tools
 
@@ -23,7 +25,7 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
 
     should set the parameters and global const in __init__
     implement query function with data matrix
-    should return element in unlabel_index set
+    should return element in _unlabel_index set
     """
 
     def __init__(self, X=None, y=None, measure='entropy', scenario='pool'):
@@ -42,7 +44,7 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
             ['least_confident', 'margin', 'entropy', 'distance_to_boundary']
             --'least_confident' x* = argmax 1-P(y_hat|x) ,where y_hat = argmax P(yi|x)
             --'margin' x* = argmax P(y_hat1|x) - P(y_hat2|x), where y_hat1 and y_hat2 are the first and second
-                most probable class labels under the model, respectively.
+                most probable class _labels under the model, respectively.
             --'entropy' x* = argmax -sum(P(yi|x)logP(yi|x))
             --'distance_to_boundary' Only available in binary classification, x* = argmin |f(x)|
 
@@ -60,8 +62,8 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
         self.scenario = scenario
         super(QueryInstanceUncertainty, self).__init__(X, y)
 
-    def select(self, label_index, unlabel_index, model=SVC(), batch_size=1):
-        """Select index in unlabel_index to query
+    def select(self, label_index, unlabel_index, model=None, batch_size=1):
+        """Select index in _unlabel_index to query
 
         Parameters
         ----------
@@ -78,13 +80,17 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
         Returns
         -------
         selected_idx: array-like
-            queried keys, keys are in unlabel_index
+            queried keys, keys are in _unlabel_index
         """
         # assert (batch_size > 0)
-        assert (isinstance(unlabel_index, collections.Iterable))
+        assert (isinstance(unlabel_index, (list, np.ndarray, IndexCollection)))
         if len(unlabel_index) <= batch_size:
             return np.array([i for i in unlabel_index])
-        # assert(isinstance(label_index,collections.Iterable))
+        # assert(isinstance(_label_index,collections.Iterable))
+        if model is None:
+            model = SVC(probability=True)
+            model.fit(self.X[label_index if isinstance(label_index, (list, np.ndarray)) else label_index.index],
+                      self.y[label_index if isinstance(label_index, (list, np.ndarray)) else label_index.index])
 
         # get unlabel_x
         if self.X is None:
@@ -112,7 +118,7 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
                                              batch_size=batch_size)
 
     def select_by_prediction_mat(self, unlabel_index, predict, batch_size=1):
-        """Select index in unlabel_index to query
+        """Select index in _unlabel_index to query
 
         Parameters
         ----------
@@ -129,12 +135,12 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
         Returns
         -------
         selected_idx: array-like
-            queried keys, keys are in unlabel_index
+            queried keys, keys are in _unlabel_index
         """
-        # if not isinstance(unlabel_index, (BaseCollection,set,list,np.ndarray)) :
-        #     raise TypeError('unlabel_index should be a DataCollection, Set, List Type')
-        # if not isinstance(label_index,(BaseCollection,set,list,np.ndarray)) :
-        #     raise TypeError('unlabel_index should be a DataCollection, Set, List Type')
+        # if not isinstance(_unlabel_index, (BaseCollection,set,list,np.ndarray)) :
+        #     raise TypeError('_unlabel_index should be a DataCollection, Set, List Type')
+        # if not isinstance(_label_index,(BaseCollection,set,list,np.ndarray)) :
+        #     raise TypeError('_unlabel_index should be a DataCollection, Set, List Type')
         assert (isinstance(unlabel_index, collections.Iterable))
         assert (batch_size > 0)
         if len(unlabel_index) <= batch_size:
@@ -302,8 +308,8 @@ class QueryInstanceQBC(utils.base.BaseQueryStrategy):
         else:
             raise ValueError("disagreement must be one of ['vote_entropy', 'KL_divergence']")
 
-    def select(self, label_index, unlabel_index, model=SVC(), batch_size=1, n_jobs=None):
-        """Select index in unlabel_index to query
+    def select(self, label_index, unlabel_index, model=None, batch_size=1, n_jobs=None):
+        """Select index in _unlabel_index to query
 
         Parameters
         ----------
@@ -320,16 +326,20 @@ class QueryInstanceQBC(utils.base.BaseQueryStrategy):
             batch size of AL
 
         n_jobs: int, optional (default=None)
-            how many threads will be used in training bagging
+            how many __threads will be used in training bagging
 
         Returns
         -------
         selected_idx: array-like
-            queried keys, keys are in unlabel_index
+            queried keys, keys are in _unlabel_index
         """
-        assert (isinstance(unlabel_index, collections.Iterable))
+        assert (isinstance(unlabel_index, (list, np.ndarray, IndexCollection)))
         if len(unlabel_index) <= batch_size:
             return np.array([i for i in unlabel_index])
+        if model is None:
+            model = SVC(probability=True)
+            model.fit(self.X[label_index if isinstance(label_index, (list, np.ndarray)) else label_index.index],
+                      self.y[label_index if isinstance(label_index, (list, np.ndarray)) else label_index.index])
 
         # get unlabel_x
         if self.X is None or self.y is None:
@@ -481,9 +491,9 @@ if __name__ == '__main__':
     # Q = QueryInstanceUncertainty(measure='entropy')
     # id = np.arange(20)
     # np.random.shuffle(id)
-    # label_idx = id[:5]
-    # unlabel_idx = id[5:]
-    # print(unlabel_idx)
+    # _label_idx = id[:5]
+    # _unlabel_idx = id[5:]
+    # print(_unlabel_idx)
     # unlabel_x = np.random.rand(15, 5)
     #
     #
@@ -496,7 +506,7 @@ if __name__ == '__main__':
     #
     #
     # m = Model()
-    # idx = Q.select(label_index=label_idx, unlabel_index=unlabel_idx,
+    # idx = Q.select(_label_index=_label_idx, _unlabel_index=_unlabel_idx,
     #                model=m,
     #                batch_size=1)
     # print(idx)
@@ -544,8 +554,8 @@ class QueryExpectedErrorReduction(utils.base.BaseQueryStrategy):
         else:
             raise ValueError("disagreement must be one of ['vote_entropy', 'KL_divergence']")
 
-    def select(self, label_index, unlabel_index, model=SVC(), batch_size=1, n_jobs=None):
-        """Select index in unlabel_index to query
+    def select(self, label_index, unlabel_index, model=None, batch_size=1, n_jobs=None):
+        """Select index in _unlabel_index to query
 
         Parameters
         ----------
@@ -562,16 +572,20 @@ class QueryExpectedErrorReduction(utils.base.BaseQueryStrategy):
             batch size of AL
 
         n_jobs: int, optional (default=None)
-            how many threads will be used in training bagging
+            how many __threads will be used in training bagging
 
         Returns
         -------
         selected_idx: array-like
-            queried keys, keys are in unlabel_index
+            queried keys, keys are in _unlabel_index
         """
-        assert (isinstance(unlabel_index, collections.Iterable))
+        assert (isinstance(unlabel_index, (list, np.ndarray, IndexCollection)))
         if len(unlabel_index) <= batch_size:
             return np.array([i for i in unlabel_index])
+        if model is None:
+            model = SVC(probability=True)
+            model.fit(self.X[label_index if isinstance(label_index, (list, np.ndarray)) else label_index.index],
+                      self.y[label_index if isinstance(label_index, (list, np.ndarray)) else label_index.index])
 
         # get unlabel_x
         if self.X is None or self.y is None:

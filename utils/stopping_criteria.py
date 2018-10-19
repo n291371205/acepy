@@ -65,6 +65,8 @@ class StoppingCriteria:
         self._current_unlabel = 100
         self._percent = 1.0
 
+        self._init_value = value
+
     def is_stop(self):
         if self._current_unlabel == 0:
             return True
@@ -108,3 +110,11 @@ class StoppingCriteria:
         elif self._stopping_criteria == 'percent_of_unlabel':
             self._percent = (len(ini_Uindex)-len(Uindex))/len(ini_Uindex)
         return self
+
+    def reset(self):
+        self.value = self._init_value
+        self._start_time = time.clock()
+        self._current_iter = 0
+        self._accum_cost = 0
+        self._current_unlabel = 100
+        self._percent = 1.0

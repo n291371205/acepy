@@ -12,14 +12,17 @@ sure the robustness of the code.
 import copy
 import os
 import pickle
+import inspect
 
 from sklearn.svm import SVC
-from sklearn.utils import check_array
+from sklearn.utils import check_array, check_X_y
 from sklearn.utils.multiclass import unique_labels, type_of_target
+from sklearn.linear_model import LogisticRegression
 
 from data_process.al_split import split, split_multi_label, split_features
 from experiment_saver.state_io import StateIO
 from oracle.oracle import OracleQueryMultiLabel, Oracle, OracleQueryFeatures
+from experiment_saver.state import State
 from query_strategy.query_strategy import QueryInstanceUncertainty, QueryRandom
 from utils.ace_warnings import *
 from utils.al_collections import IndexCollection, MultiLabelIndexCollection, FeatureIndexCollection
@@ -46,7 +49,7 @@ class ToolBox:
     Parameters
     ----------
     y: array-like
-        labels of given data [n_samples, n_labels] or [n_samples]
+        _labels of given data [n_samples, n_labels] or [n_samples]
 
     X: array-like, optional (default=None)
         data matrix with [n_samples, n_features].
@@ -62,10 +65,10 @@ class ToolBox:
         active learning settings. It will determine how to split data.
         should be one of ['AllLabels', 'Partlabels', 'Features']:
 
-        AllLabels: query all labels of an selected instance.
+        AllLabels: query all _labels of an selected instance.
             Support scene: binary classification, multi-class classification, multi-label classification, regression
 
-        Partlabels: query part of labels of an instance.
+        Partlabels: query part of _labels of an instance.
             Support scene: multi-label classification
 
         Features: query part of features of an instance.
@@ -117,7 +120,7 @@ class ToolBox:
             self._X = check_array(X, accept_sparse='csr', ensure_2d=True, order='C')
             n_samples = self._X.shape[0]
             if n_samples != self._index_len:
-                raise ValueError("Different length of instances and labels found.")
+                raise ValueError("Different length of instances and _labels found.")
             else:
                 self._index_len = n_samples
 
@@ -136,13 +139,13 @@ class ToolBox:
             raise NotImplementedError("Query type %s is not implemented." % type)
 
         self._split = False
-        train_idx = kwargs.pop('train_idx', None)
-        test_idx = kwargs.pop('test_idx', None)
-        label_idx = kwargs.pop('label_idx', None)
-        unlabel_idx = kwargs.pop('unlabel_idx', None)
+        train_idx = kwargs.pop('_train_idx', None)
+        test_idx = kwargs.pop('_test_idx', None)
+        label_idx = kwargs.pop('_label_idx', None)
+        unlabel_idx = kwargs.pop('_unlabel_idx', None)
         if train_idx is not None and test_idx is not None and label_idx is not None and unlabel_idx is not None:
             if not (len(train_idx) == len(test_idx) == len(label_idx) == len(unlabel_idx)):
-                raise ValueError("train_idx, test_idx, label_idx, unlabel_idx "
+                raise ValueError("_train_idx, _test_idx, _label_idx, _unlabel_idx "
                                  "should have the same split count (length)")
             self._split = True
             self.train_idx = train_idx
@@ -155,7 +158,7 @@ class ToolBox:
         if saving_path is not None:
             if not isinstance(self._saving_path, str):
                 raise TypeError("A string is expected, but received: %s" % str(type(self._saving_path)))
-            self.save_settings(saving_path)
+            self.save(saving_path)
 
     def split_AL(self, test_ratio=0.3, initial_label_rate=0.05,
                  split_count=10, all_class=True):
@@ -172,7 +175,7 @@ class ToolBox:
             e.g. initial_labelset*(1-test_ratio)*n_samples
 
         split_count: int, optional (default=10)
-            random split data split_count times
+            random split data _split_count times
 
         all_class: bool, optional (default=True)
             whether each split will contain at least one instance for each class.
@@ -196,7 +199,7 @@ class ToolBox:
         # should support other query types in the future
         self.split_count = split_count
         if self._target_type != 'Features':
-            if self._target_type == 'multilabel':
+            if self._target_type != 'multilabel':
                 self.train_idx, self.test_idx, self.label_idx, self.unlabel_idx = split(
                     X=self._X if self._instance_flag else None,
                     y=self._y,
@@ -213,7 +216,7 @@ class ToolBox:
                     initial_label_rate=initial_label_rate,
                     split_count=split_count,
                     all_class=all_class,
-                    partially_labeled=False)
+                    )
         else:
             self.train_idx, self.test_idx, self.label_idx, self.unlabel_idx = split_features(
                 feature_matrix=self._X,
@@ -246,7 +249,7 @@ class ToolBox:
             return copy.deepcopy(self.train_idx), copy.deepcopy(self.test_idx), \
                    copy.deepcopy(self.label_idx), copy.deepcopy(self.unlabel_idx)
 
-    def get_clean_oracle(self):
+    def clean_oracle(self):
         if self.query_type == 'Features':
             return OracleQueryFeatures(feature_mat=self._X)
         elif self.query_type == 'AllLabels':
@@ -255,12 +258,12 @@ class ToolBox:
             else:
                 return Oracle(self._y)
 
-    def get_saver(self, round):
+    def StateIO(self, round):
         assert (0 <= round < self.split_count)
-        train_id, test_id, Ucollection, Lcollection = self.get_split(round)
-        return StateIO(round, train_id, test_id, Ucollection, Lcollection)
+        train_id, test_id, Lcollection, Ucollection = self.get_split(round)
+        return StateIO(round, train_id, test_id, Lcollection, Ucollection)
 
-    def __get_knowledge_db(self, round):
+    def __knowledge_db(self, round):
         assert (0 <= round < self.split_count)
         train_id, test_id, Ucollection, Lcollection = self.get_split(round)
         if self.query_type == 'AllLabels':
@@ -270,7 +273,7 @@ class ToolBox:
         else:
             raise NotImplemented("other query types for knowledge DB is not implemented yet.")
 
-    def get_query_strategy(self, strategy_name="random"):
+    def query_strategy(self, strategy_name="random"):
         """Return the query strategy object.
 
         Parameters
@@ -283,6 +286,7 @@ class ToolBox:
         """
         if self.query_type != "AllLabels":
             raise NotImplemented("Query strategy for other query types is not implemented yet.")
+        pass
 
     def get_multilabel_matrix_by_index(self, index, missing_value=0):
         """Index multilabel matrix by index. It can have missing value (query example-label pairs),
@@ -301,10 +305,10 @@ class ToolBox:
             raise Exception("This function is only available in multi label setting.")
         return get_labelmatrix_in_multilabel(index=index, data_matrix=self._y, unknown_element=missing_value)
 
-    def get_default_model(self):
-        return SVC()
+    def default_model(self):
+        return SVC(probability=True)
 
-    def get_stopping_criterion(self, stopping_criteria=None, value=None):
+    def stopping_criterion(self, stopping_criteria=None, value=None):
         """Return example stopping criterion.
 
         Parameters
@@ -320,22 +324,22 @@ class ToolBox:
         """
         return StoppingCriteria(stopping_criteria=stopping_criteria, value=value)
 
-    def get_experiment_analyser(self):
+    def experiment_analyser(self):
         """Return ExperimentAnalyser object"""
         return ExperimentAnalyser()
 
-    def get_aceThreading(self, max_thread=None, refresh_interval=1, saving_path='.'):
+    def aceThreading(self, target_function=None, max_thread=None, refresh_interval=1, saving_path='.'):
         """Return the multithreading tool class
 
         Parameters
         __________
-        max_thread: int, optional (default=None)
-            The max threads for running at the same time. If not provided, it will run all rounds simultaneously.
+        __max_thread: int, optional (default=None)
+            The max __threads for running at the same time. If not provided, it will run all rounds simultaneously.
 
-        refresh_interval: float, optional (default=1.0)
+        _refresh_interval: float, optional (default=1.0)
             how many seconds to refresh the current state output, default is 1.0.
 
-        saving_path: str, optional (default='.')
+        _saving_path: str, optional (default='.')
             the path to save the result files.
         """
         if not self._instance_flag:
@@ -346,9 +350,10 @@ class ToolBox:
                             unlabel_index=self.unlabel_idx,
                             refresh_interval=refresh_interval,
                             max_thread=max_thread,
-                            saving_path=saving_path)
+                            saving_path=saving_path,
+                            target_func=target_function)
 
-    def save_settings(self):
+    def save(self):
         """Save the experiment settings to file for auditting or loading for other methods."""
         if self._saving_path is None:
             return
@@ -365,7 +370,7 @@ class ToolBox:
         return IndexCollection(array)
 
     @classmethod
-    def load_settings(cls, path):
+    def load(cls, path):
         """Loading ExperimentSetting object from path.
 
         Parameters
@@ -391,21 +396,82 @@ class AlExperiment:
     """AlExperiment is a  class to encapsulate various tools
     and implement the main loop of active learning.
 
+    Only support the most commonly used scenario: query label of an instance
+
     To run the experiment with only one class,
     we have to impose some restrictions to make
-    sure the robustness of the code.
+    sure the robustness of the code:
+    1. Your model object should accord scikit-learn api
+    2. If a custom query strategy is given, you should implement
+        the BaseQueryStrategy api. Additional parameters should be static.
+    3. The data split should be given if you are comparing multiple methods.
+        You may also generate new split with split_AL()
+
 
     Parameters
     ----------
+    X,y : array
+        The data matrix
+
     model: object
         An model object which accord the scikit-learn api
 
     performance_metric: str, optional (default='accuracy')
         The performance metric
+
+    stopping_criteria: str, optional (default=None)
+        stopping criteria, must be one of: [None, 'num_of_queries', 'cost_limit', 'percent_of_unlabel', 'time_limit']
+
+        None: stop when no unlabeled samples available
+        'num_of_queries': stop when preset number of quiries is reached
+        'cost_limit': stop when cost reaches the limit.
+        'percent_of_unlabel': stop when specific percentage of unlabeled data pool is labeled.
+        'time_limit': stop when CPU time reaches the limit.
+
+    batch_size: int, optional (default=1)
+        batch size of AL
+
+    train_idx: array-like, optional (default=None)
+        index of training set, shape like [n_split_count, n_training_indexex]
+
+    test_idx: array-like, optional (default=None)
+        index of testing set, shape like [n_split_count, n_testing_indexex]
+
+    label_idx: array-like, optional (default=None)
+        index of labeling set, shape like [n_split_count, n_labeling_indexex]
+
+    unlabel_idx: array-like, optional (default=None)
+        index of unlabeling set, shape like [n_split_count, n_unlabeling_indexex]
     """
 
-    def __init__(self, model=SVC(), performance_metric='accuracy', **kwargs):
-        pass
+    def __init__(self, X, y, model=SVC(), performance_metric='accuracy',
+                 stopping_criteria=None, stopping_value=None, batch_size=1, **kwargs):
+        self.__custom_strategy_flag = False
+        self._split = False
+        self._split_count = 0
+
+        self._X, self._y = check_X_y(X, y, accept_sparse='csc', multi_output=True)
+        self._model = model
+        self._performance_metric = performance_metric
+
+        # set split in the initial
+        train_idx = kwargs.pop('_train_idx', None)
+        test_idx = kwargs.pop('_test_idx', None)
+        label_idx = kwargs.pop('_label_idx', None)
+        unlabel_idx = kwargs.pop('_unlabel_idx', None)
+        if train_idx is not None and test_idx is not None and label_idx is not None and unlabel_idx is not None:
+            if not (len(train_idx) == len(test_idx) == len(label_idx) == len(unlabel_idx)):
+                raise ValueError("_train_idx, _test_idx, _label_idx, _unlabel_idx "
+                                 "should have the same split count (length)")
+            self._split = True
+            self._train_idx = train_idx
+            self._test_idx = test_idx
+            self._label_idx = label_idx
+            self._unlabel_idx = unlabel_idx
+            self._split_count = len(train_idx)
+
+        self._stopping_criterion = StoppingCriteria(stopping_criteria, stopping_value)
+        self._batch_size = 1
 
     def set_query_strategy(self, strategy="Uncertainty", **kwargs):
         """
@@ -422,4 +488,134 @@ class AlExperiment:
             Note that, each parameters should be static.
             The parameters will be fed to the callable object automatically.
         """
+        if callable(strategy):
+            self.__custom_strategy_flag = True
+            self._query_function = strategy
+            self.__custom_func_arg = kwargs
+            return
+        if strategy not in []:
+            raise NotImplementedError('Strategy %s is not implemented. Specify a valid '
+                                      'method name or privide a callable object.', str(strategy))
         pass
+
+    def set_data_split(self, train_idx, test_idx, label_idx, unlabel_idx):
+        """set the data split indexes.
+
+        Parameters
+        ----------
+        train_idx: array-like, optional (default=None)
+            index of training set, shape like [n_split_count, n_training_indexex]
+
+        test_idx: array-like, optional (default=None)
+            index of testing set, shape like [n_split_count, n_testing_indexex]
+
+        label_idx: array-like, optional (default=None)
+            index of labeling set, shape like [n_split_count, n_labeling_indexex]
+
+        unlabel_idx: array-like, optional (default=None)
+            index of unlabeling set, shape like [n_split_count, n_unlabeling_indexex]
+
+        Returns
+        -------
+
+        """
+        if not (len(train_idx) == len(test_idx) == len(label_idx) == len(unlabel_idx)):
+            raise ValueError("_train_idx, _test_idx, _label_idx, _unlabel_idx "
+                             "should have the same split count (length)")
+        self._split = True
+        self._train_idx = train_idx
+        self._test_idx = test_idx
+        self._label_idx = label_idx
+        self._unlabel_idx = unlabel_idx
+        self._split_count = len(train_idx)
+
+    def split_AL(self, test_ratio=0.3, initial_label_rate=0.05,
+                 split_count=10, all_class=True):
+        """split dataset for active learning experiment.
+
+        Parameters
+        ----------
+        test_ratio: float, optional (default=0.3)
+            ratio of test set
+
+        initial_label_rate: float, optional (default=0.05)
+            ratio of initial label set or the existed features (missing rate = 1-initial_label_rate)
+            e.g. initial_labelset*(1-test_ratio)*n_samples
+
+        split_count: int, optional (default=10)
+            random split data _split_count times
+
+        all_class: bool, optional (default=True)
+            whether each split will contain at least one instance for each class.
+            If False, a totally random split will be performed.
+
+        Returns
+        -------
+        _train_idx: array-like
+            index of training set, shape like [n_split_count, n_training_indexex]
+
+        _test_idx: array-like
+            index of testing set, shape like [n_split_count, n_testing_indexex]
+
+        label_idx: array-like
+            index of labeling set, shape like [n_split_count, n_labeling_indexex]
+
+        unlabel_idx: array-like
+            index of unlabeling set, shape like [n_split_count, n_unlabeling_indexex]
+
+        """
+        self._split_count = split_count
+        self._split = True
+        self._train_idx, self._test_idx, self._label_idx, self._unlabel_idx = split(
+            X=self._X,
+            y=self._y,
+            test_ratio=test_ratio,
+            initial_label_rate=initial_label_rate,
+            split_count=split_count,
+            all_class=all_class)
+        return self._train_idx, self._test_idx, self._label_idx, self._unlabel_idx
+
+    def start_query(self, multi_thread=True):
+        """Start the active learning main loop
+        If using implemented query strategy, It will run in multi-thread default"""
+        if not self._split:
+            raise Exception("Data split is unknown. Use set_data_split() to set an existed split, "
+                            "or use split_AL() to generate new split.")
+
+        if multi_thread:
+            aceThreading()
+        else:
+            pass
+
+    def __al_main_loop(self, round, train_id, test_id, Lcollection, Ucollection,
+                       saver, examples, labels, global_parameters):
+        self._model.fit(X=self._X[Lcollection.index, :], y=self.y[Lcollection.index])
+        pred = self._model.predict(self._X[test_id, :])
+
+        # performance calc
+        accuracy = sum(pred == self._y[test_id]) / len(test_id)
+
+        saver.set_initial_point(accuracy)
+        while not self._stopping_criterion:
+            if not self.__custom_strategy_flag:
+                if 'model' in inspect.getfullargspec(self._query_function.select)[0]:
+                    select_ind = self._query_function.select(Lcollection, Ucollection, batch_size=self._batch_size,
+                                                             model=self._model)
+                else:
+                    select_ind = self._query_function.select(Lcollection, Ucollection, batch_size=self._batch_size)
+            else:
+                select_ind = self._query_function.select(Lcollection, Ucollection, batch_size=self._batch_size,
+                                                         **self.__custom_func_arg)
+            Lcollection.update(select_ind)
+            Ucollection.difference_update(select_ind)
+            # update model
+            self._model.fit(X=self._X[Lcollection.index, :], y=self._y[Lcollection.index])
+            pred = self._model.predict(self._X[test_id, :])
+
+            # performance calc
+            accuracy = sum(pred == self._y[test_id]) / len(test_id)
+
+            # save intermediate results
+            st = State(select_index=select_ind, performance=accuracy)
+            saver.add_state(st)
+            saver.save()
