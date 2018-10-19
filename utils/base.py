@@ -9,6 +9,7 @@ ABC for AL
 from abc import ABCMeta, abstractmethod
 import collections.abc
 import copy
+import numpy as np
 from sklearn.utils.validation import check_X_y
 
 
@@ -21,7 +22,12 @@ class BaseQueryStrategy(metaclass=ABCMeta):
     """
     def __init__(self, X=None, y=None, **kwargs):
         if X is not None and y is not None:
-            self.X, self.y = check_X_y(X, y, accept_sparse='csc', multi_output=True)
+            if isinstance(X, np.ndarray) and isinstance(y, np.ndarray):
+                check_X_y(X, y, accept_sparse='csc', multi_output=True)
+                self.X = X
+                self.y = y
+            else:
+                self.X, self.y = check_X_y(X, y, accept_sparse='csc', multi_output=True)
         else:
             self.X = X
             self.y = y

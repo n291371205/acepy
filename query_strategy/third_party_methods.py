@@ -15,6 +15,12 @@ Graph Density
 -- https://www.mpi-inf.mpg.de/fileadmin/inf/d2/Research_projects_files/EbertCVPR2012.pdf
 
 
+-- Implement --
+BMDR
+-- KKD'13
+
+LAL
+-- NIPS'17
 
 
 Planning:
@@ -23,9 +29,7 @@ Hierarchical Sampling for Active Learning (HS)
 -- Sanjoy Dasgupta and Daniel Hsu. "Hierarchical sampling for active
    learning." ICML 2008.
 
-Active Learning by Learning
--- Hsu & Lin 2015, Active Learning by Learning.
-https://www.csie.ntu.edu.tw/~htlin/paper/doc/aaai15albl.pdf
+
 """
 
 from __future__ import absolute_import
@@ -43,6 +47,8 @@ import utils.base
 from sklearn.metrics.pairwise import linear_kernel, polynomial_kernel, \
     rbf_kernel
 import utils.tools
+import sys
+from query_strategy.lal_model import LALmodel
 
 
 class QueryInstanceQUIRE(utils.base.BaseQueryStrategy):
@@ -337,6 +343,12 @@ class QueryInstanceBMDR(utils.base.BaseQueryStrategy):
         if self.K.shape != (len(X), len(X)):
             raise ValueError(
                 'kernel should have size (%d, %d)' % (len(X), len(X)))
+
+class QueryInstanceLAL(utils.base.BaseQueryStrategy):
+    """"""
+    def __init__(self, X, y):
+        pass
+
 
 
 if __name__ == "__main__":

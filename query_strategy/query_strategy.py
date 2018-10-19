@@ -11,7 +11,9 @@ import collections
 import warnings
 
 import numpy as np
+from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
+from utils.al_collections import IndexCollection
 import utils.base
 import utils.tools
 
@@ -60,7 +62,7 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
         self.scenario = scenario
         super(QueryInstanceUncertainty, self).__init__(X, y)
 
-    def select(self, label_index, unlabel_index, model=SVC(), batch_size=1):
+    def select(self, label_index, unlabel_index, model=None, batch_size=1):
         """Select index in _unlabel_index to query
 
         Parameters
@@ -81,10 +83,14 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
             queried keys, keys are in _unlabel_index
         """
         # assert (batch_size > 0)
-        assert (isinstance(unlabel_index, collections.Iterable))
+        assert (isinstance(unlabel_index, (list, np.ndarray, IndexCollection)))
         if len(unlabel_index) <= batch_size:
             return np.array([i for i in unlabel_index])
         # assert(isinstance(_label_index,collections.Iterable))
+        if model is None:
+            model = SVC(probability=True)
+            model.fit(self.X[label_index if isinstance(label_index, (list, np.ndarray)) else label_index.index],
+                      self.y[label_index if isinstance(label_index, (list, np.ndarray)) else label_index.index])
 
         # get unlabel_x
         if self.X is None:
@@ -302,7 +308,7 @@ class QueryInstanceQBC(utils.base.BaseQueryStrategy):
         else:
             raise ValueError("disagreement must be one of ['vote_entropy', 'KL_divergence']")
 
-    def select(self, label_index, unlabel_index, model=SVC(), batch_size=1, n_jobs=None):
+    def select(self, label_index, unlabel_index, model=None, batch_size=1, n_jobs=None):
         """Select index in _unlabel_index to query
 
         Parameters
@@ -327,9 +333,13 @@ class QueryInstanceQBC(utils.base.BaseQueryStrategy):
         selected_idx: array-like
             queried keys, keys are in _unlabel_index
         """
-        assert (isinstance(unlabel_index, collections.Iterable))
+        assert (isinstance(unlabel_index, (list, np.ndarray, IndexCollection)))
         if len(unlabel_index) <= batch_size:
             return np.array([i for i in unlabel_index])
+        if model is None:
+            model = SVC(probability=True)
+            model.fit(self.X[label_index if isinstance(label_index, (list, np.ndarray)) else label_index.index],
+                      self.y[label_index if isinstance(label_index, (list, np.ndarray)) else label_index.index])
 
         # get unlabel_x
         if self.X is None or self.y is None:
@@ -544,7 +554,7 @@ class QueryExpectedErrorReduction(utils.base.BaseQueryStrategy):
         else:
             raise ValueError("disagreement must be one of ['vote_entropy', 'KL_divergence']")
 
-    def select(self, label_index, unlabel_index, model=SVC(), batch_size=1, n_jobs=None):
+    def select(self, label_index, unlabel_index, model=None, batch_size=1, n_jobs=None):
         """Select index in _unlabel_index to query
 
         Parameters
@@ -569,9 +579,13 @@ class QueryExpectedErrorReduction(utils.base.BaseQueryStrategy):
         selected_idx: array-like
             queried keys, keys are in _unlabel_index
         """
-        assert (isinstance(unlabel_index, collections.Iterable))
+        assert (isinstance(unlabel_index, (list, np.ndarray, IndexCollection)))
         if len(unlabel_index) <= batch_size:
             return np.array([i for i in unlabel_index])
+        if model is None:
+            model = SVC(probability=True)
+            model.fit(self.X[label_index if isinstance(label_index, (list, np.ndarray)) else label_index.index],
+                      self.y[label_index if isinstance(label_index, (list, np.ndarray)) else label_index.index])
 
         # get unlabel_x
         if self.X is None or self.y is None:

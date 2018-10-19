@@ -425,7 +425,7 @@ def split_load(path):
         raise Exception("A path to a directory is expected.")
 
     ret_arr = []
-    for fname in ['_train_idx.txt', '_test_idx.txt', '_label_idx.txt', '_unlabel_idx.txt']:
+    for fname in ['train_idx.txt', 'test_idx.txt', 'label_idx.txt', 'unlabel_idx.txt']:
         if not os.path.exists(os.path.join(saving_path, fname)):
             if os.path.exists(os.path.join(saving_path, fname.split()[0] + '.npy')):
                 ret_arr.append(np.load(os.path.join(saving_path, fname.split()[0] + '.npy')))
@@ -454,14 +454,14 @@ def split_save(train_idx, test_idx, label_idx, unlabel_idx, path):
 
     saving_path = os.path.abspath(path)
     if os.path.isdir(saving_path):
-        np.savetxt(os.path.join(saving_path, '_train_idx.txt'), train_idx)
-        np.savetxt(os.path.join(saving_path, '_test_idx.txt'), test_idx)
+        np.savetxt(os.path.join(saving_path, 'train_idx.txt'), train_idx)
+        np.savetxt(os.path.join(saving_path, 'test_idx.txt'), test_idx)
         if len(np.shape(label_idx)) == 2:
-            np.savetxt(os.path.join(saving_path, '_label_idx.txt'), label_idx)
-            np.savetxt(os.path.join(saving_path, '_unlabel_idx.txt'), unlabel_idx)
+            np.savetxt(os.path.join(saving_path, 'label_idx.txt'), label_idx)
+            np.savetxt(os.path.join(saving_path, 'unlabel_idx.txt'), unlabel_idx)
         else:
-            np.save(os.path.join(saving_path, '_label_idx.npy'), label_idx)
-            np.save(os.path.join(saving_path, '_unlabel_idx.npy'), unlabel_idx)
+            np.save(os.path.join(saving_path, 'label_idx.npy'), label_idx)
+            np.save(os.path.join(saving_path, 'unlabel_idx.npy'), unlabel_idx)
     else:
         raise Exception("A path to a directory is expected.")
 

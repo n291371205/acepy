@@ -17,6 +17,7 @@ import inspect
 from sklearn.svm import SVC
 from sklearn.utils import check_array, check_X_y
 from sklearn.utils.multiclass import unique_labels, type_of_target
+from sklearn.linear_model import LogisticRegression
 
 from data_process.al_split import split, split_multi_label, split_features
 from experiment_saver.state_io import StateIO
@@ -157,7 +158,7 @@ class ToolBox:
         if saving_path is not None:
             if not isinstance(self._saving_path, str):
                 raise TypeError("A string is expected, but received: %s" % str(type(self._saving_path)))
-            self.save_settings(saving_path)
+            self.save(saving_path)
 
     def split_AL(self, test_ratio=0.3, initial_label_rate=0.05,
                  split_count=10, all_class=True):
@@ -182,23 +183,23 @@ class ToolBox:
 
         Returns
         -------
-        _train_idx: array-like
+        train_idx: array-like
             index of training set, shape like [n_split_count, n_training_indexex]
 
-        _test_idx: array-like
+        test_idx: array-like
             index of testing set, shape like [n_split_count, n_testing_indexex]
 
-        _label_idx: array-like
+        label_idx: array-like
             index of labeling set, shape like [n_split_count, n_labeling_indexex]
 
-        _unlabel_idx: array-like
+        unlabel_idx: array-like
             index of unlabeling set, shape like [n_split_count, n_unlabeling_indexex]
 
         """
         # should support other query types in the future
         self.split_count = split_count
         if self._target_type != 'Features':
-            if self._target_type == 'multilabel':
+            if self._target_type != 'multilabel':
                 self.train_idx, self.test_idx, self.label_idx, self.unlabel_idx = split(
                     X=self._X if self._instance_flag else None,
                     y=self._y,
@@ -259,8 +260,8 @@ class ToolBox:
 
     def StateIO(self, round):
         assert (0 <= round < self.split_count)
-        train_id, test_id, Ucollection, Lcollection = self.get_split(round)
-        return StateIO(round, train_id, test_id, Ucollection, Lcollection)
+        train_id, test_id, Lcollection, Ucollection = self.get_split(round)
+        return StateIO(round, train_id, test_id, Lcollection, Ucollection)
 
     def __knowledge_db(self, round):
         assert (0 <= round < self.split_count)
@@ -305,7 +306,7 @@ class ToolBox:
         return get_labelmatrix_in_multilabel(index=index, data_matrix=self._y, unknown_element=missing_value)
 
     def default_model(self):
-        return SVC()
+        return SVC(probability=True)
 
     def stopping_criterion(self, stopping_criteria=None, value=None):
         """Return example stopping criterion.

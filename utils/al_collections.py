@@ -92,6 +92,9 @@ class IndexCollection(BaseCollection):
     def __getitem__(self, item):
         return self._innercontainer.__getitem__(item)
 
+    def get_elementType(self):
+        return self._element_type
+
     def pop(self):
         """Return the popped value. Raise KeyError if empty."""
         return self._innercontainer.pop()
