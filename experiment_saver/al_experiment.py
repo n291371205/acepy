@@ -306,7 +306,8 @@ class ToolBox:
         return get_labelmatrix_in_multilabel(index=index, data_matrix=self._y, unknown_element=missing_value)
 
     def default_model(self):
-        return SVC(probability=True)
+        # return SVC(probability=True, class_weight='balanced')
+        return LogisticRegression()
 
     def stopping_criterion(self, stopping_criteria=None, value=None):
         """Return example stopping criterion.
