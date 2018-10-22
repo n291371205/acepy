@@ -273,14 +273,17 @@ class QueryInstanceGraphDensity(utils.base.BaseQueryStrategy):
         # end
 
         self.graph_density[label_index_in_train] = min(self.graph_density) - 1
+        selected_arr = []
         while len(batch) < batch_size:
             selected = np.argmax(self.graph_density)
+            selected_arr.append(selected)
             neighbors = (self.connect[selected, :] > 0).nonzero()[1]
             self.graph_density[neighbors] = self.graph_density[neighbors] - self.graph_density[selected]
             assert (self.train_idx[selected] in unlabel_index)
             batch.add(self.train_idx[selected])
             self.graph_density[label_index_in_train] = min(self.graph_density) - 1
-            self.graph_density[list(batch)] = min(self.graph_density) - 1
+            # self.graph_density[list(batch)] = min(self.graph_density) - 1
+            self.graph_density[selected_arr] = min(self.graph_density) - 1
         return list(batch)
 
     def to_dict(self):

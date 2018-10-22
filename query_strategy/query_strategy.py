@@ -13,7 +13,7 @@ import warnings
 
 import numpy as np
 from sklearn.linear_model import LogisticRegression
-from sklearn.svm import SVC
+# from sklearn.svm import SVC
 from utils.al_collections import IndexCollection
 import utils.base
 import utils.tools
@@ -89,7 +89,7 @@ class QueryInstanceUncertainty(utils.base.BaseQueryStrategy):
             return np.array([i for i in unlabel_index])
         # assert(isinstance(_label_index,collections.Iterable))
         if model is None:
-            model = SVC(probability=True)
+            model = LogisticRegression()
             model.fit(self.X[label_index if isinstance(label_index, (list, np.ndarray)) else label_index.index],
                       self.y[label_index if isinstance(label_index, (list, np.ndarray)) else label_index.index])
 
@@ -338,7 +338,7 @@ class QueryInstanceQBC(utils.base.BaseQueryStrategy):
         if len(unlabel_index) <= batch_size:
             return np.array([i for i in unlabel_index])
         if model is None:
-            model = SVC(probability=True)
+            model = LogisticRegression()
             model.fit(self.X[label_index if isinstance(label_index, (list, np.ndarray)) else label_index.index],
                       self.y[label_index if isinstance(label_index, (list, np.ndarray)) else label_index.index])
 
@@ -530,7 +530,7 @@ class QureyExpectedErrorReduction(utils.base.BaseQueryStrategy):
 
         # model check
         if model is None:
-            model = SVC(probability=True)
+            model = LogisticRegression()
             model.fit(self.X[label_index if isinstance(label_index, (list, np.ndarray)) else label_index.index],
                       self.y[label_index if isinstance(label_index, (list, np.ndarray)) else label_index.index])
         if not hasattr(model, 'decision_function'):

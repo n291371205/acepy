@@ -13,3 +13,5 @@ abandoned_code.py
 *.txt
 *.npy
 *.npz
+*.jpg
+*.png
