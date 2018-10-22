@@ -9,9 +9,17 @@ Implement classical methods
 from __future__ import division
 import numpy as np
 from scipy.sparse import csr_matrix
+from scipy.stats import rankdata
 
 __all__ = [
-    'accuracy'
+    'accuracy',
+    'auc',
+    'get_tps_fps_thresholds',
+    'hamming_loss',
+    'one_error',
+    'coverage_error',
+    'label_ranking_loss',
+    'label_ranking_average_precision_score'
 ]
 
 
@@ -691,7 +699,7 @@ def label_ranking_loss(y_true, y_score, sample_weight=None):
         loss[i] = np.dot(true_at_reversed_rank.cumsum(),
                          false_at_reversed_rank)
 
-    n_positives =  np.diff(y_true.indptr)
+    n_positives = np.diff(y_true.indptr)
     with np.errstate(divide="ignore", invalid="ignore"):
         loss /= ((n_labels - n_positives) * n_positives)
 
@@ -700,6 +708,105 @@ def label_ranking_loss(y_true, y_score, sample_weight=None):
     loss[np.logical_or(n_positives == 0, n_positives == n_labels)] = 0.
 
     return np.average(loss, weights=sample_weight)
+
+
+def label_ranking_average_precision_score(y_true, y_score, sample_weight=None):
+    """Compute ranking-based average precision
+
+    Parameters
+    ----------
+    y_true : array or sparse matrix, shape = [n_samples, n_labels]
+        True binary labels in binary indicator format.
+
+    y_score : array, shape = [n_samples, n_labels]
+        Target scores, can either be probability estimates of the positive
+        class, confidence values, or non-thresholded measure of decisions
+        (as returned by "decision_function" on some classifiers).
+
+    sample_weight : array-like of shape = [n_samples], optional
+        Sample weights.
+
+    Returns
+    -------
+    score : float
+
+    """
+    check_consistent_length(y_true, y_score, sample_weight)
+
+    if y_true.shape != y_score.shape:
+        raise ValueError("y_true and y_score have different shape")
+
+    # Handle badly formatted array and the degenerate case with one label
+    y_type = type_of_target(y_true)
+    if (y_type != "multilabel" and
+            not (y_type == "binary" and y_true.ndim == 2)):
+        raise ValueError("{0} format is not supported".format(y_type))
+
+    y_true = csr_matrix(y_true)
+    y_score = -y_score
+
+    n_samples, n_labels = y_true.shape
+
+    out = 0.
+    for i, (start, stop) in enumerate(zip(y_true.indptr, y_true.indptr[1:])):
+        relevant = y_true.indices[start:stop]
+
+        if (relevant.size == 0 or relevant.size == n_labels):
+            # If all labels are relevant or unrelevant, the score is also
+            # equal to 1. The label ranking has no meaning.
+            out += 1.
+            continue
+
+        scores_i = y_score[i]
+        rank = rankdata(scores_i, 'max')[relevant]
+        L = rankdata(scores_i[relevant], 'max')
+        aux = (L / rank).mean()
+        if sample_weight is not None:
+            aux = aux * sample_weight[i]
+        out += aux
+
+    if sample_weight is None:
+        out /= n_samples
+    else:
+        out /= np.sum(sample_weight)
+
+    return out
+
+
+def avgprec(outputs, test_target):
+    test_data_num = outputs.shape[0]
+    class_num = outputs.shape[1]
+    temp_outputs = []
+    temp_test_target = []
+    instance_num = 0
+    labels_index = []
+    not_labels_index = []
+    labels_size = []
+    for i in range(test_data_num):
+        if sum(test_target[i]) != class_num and sum(test_target[i]) != 0:
+            instance_num = instance_num + 1
+            temp_outputs.append(outputs[i])
+            temp_test_target.append(test_target[i])
+            labels_size.append(sum(test_target[i] == 1))
+            index1, index2 = find(test_target[i], 1, 0)            
+            labels_index.append(index1)
+            not_labels_index.append(index2)
+    
+    aveprec = 0
+    for i in range(instance_num):
+        tempvalue, index = sort(temp_outputs[i])
+        indicator = np.zeros((class_num,))     
+        for j in range(labels_size[i]):
+            loc = findIndex(labels_index[i][j], index)
+            indicator[loc] = 1
+        summary = 0
+        for j in range(labels_size[i]):
+            loc = findIndex(labels_index[i][j], index)
+            #print(loc)
+            summary = summary + sum(indicator[loc:class_num])*1.0/(class_num-loc);
+        aveprec = aveprec + summary*1.0/labels_size[i]
+    return aveprec*1.0/test_data_num
+
 
 if __name__ == '__main__':
     # y = np.array([1, 1, 2, 2])
@@ -715,8 +822,8 @@ if __name__ == '__main__':
     # print('tpr is ', tpr)
     # y_true = np.array([[1, 0, 1, 0],[0, 1, 0, 1],[1, 0, 0, 1],[0, 1, 1, 0],[1, 0, 0, 0]])
     # y_socre = np.array([[0.9, 0.0, 0.4, 0.6],[0.1, 0.8, 0.0, 0.8],[0.8, 0.0, 0.1, 0.7],[0.1, 0.7, 0.1, 0.2],[1.0, 0, 0, 1.0]])
-    y_true = np.array([[1, 0, 1, 0],[0, 1, 0, 1]])
-    y_socre = np.array([[0.9, 0.0, 0.4, 0.6],[0.1, 0.8, 0.0, 0.8]])
+    # y_true = np.array([[1, 0, 1, 0],[0, 1, 0, 1]])
+    # y_socre = np.array([[0.9, 0.0, 0.4, 0.6],[0.1, 0.8, 0.0, 0.8]])
 
-    print(coverage_error(y_true,y_socre))
-
+    # print(label_ranking_average_precision_score(y_true,y_socre))
+    pass

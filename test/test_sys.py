@@ -4,7 +4,8 @@ from experiment_saver.state import State
 
 from query_strategy.query_strategy import (QueryInstanceQBC,
                                            QueryInstanceUncertainty,
-                                           QueryRandom)
+                                           QueryRandom,
+                                           QureyExpectedErrorReduction)
 from query_strategy.third_party_methods import QueryInstanceQUIRE, QueryInstanceGraphDensity
 from utils.al_collections import IndexCollection
 from experiment_saver.al_experiment import ToolBox
@@ -27,6 +28,7 @@ QBCStrategy = QueryInstanceQBC(X, y)
 randomStrategy = QueryRandom()
 uncertainStrategy = QueryInstanceUncertainty(X, y)
 QUIREStrategy = QueryInstanceQUIRE(X, y)
+EER = QureyExpectedErrorReduction(X, y)
 
 QBC_result = []
 for round in range(split_count):
@@ -184,11 +186,48 @@ for round in range(split_count):
     stopping_criterion.reset()
     density_result.append(copy.deepcopy(saver))
 
+
+EER_result = []
+for round in range(10):
+    train_idx, test_idx, Lind, Uind = acebox.get_split(round)
+    saver = acebox.StateIO(round)
+
+    # calc the initial point
+    model.fit(X=X[Lind.index, :], y=y[Lind.index])
+    pred = model.predict(X[test_idx, :])
+    accuracy = sum(pred == y[test_idx]) / len(test_idx)
+
+    saver.set_initial_point(accuracy)
+    while not stopping_criterion.is_stop():
+        select_ind = EER.select(Lind, Uind, model=model)
+        Lind.update(select_ind)
+        Uind.difference_update(select_ind)
+
+        # update model and calc performance
+        model.fit(X=X[Lind.index, :], y=y[Lind.index])
+        pred = model.predict(X[test_idx, :])
+        accuracy = sum(pred == y[test_idx]) / len(test_idx)
+
+        # save intermediate result
+        st = State(select_index=select_ind, performance=accuracy)
+        saver.add_state(st)
+        saver.save()
+
+        # update stopping_criteria
+        stopping_criterion.update_information(saver)
+    stopping_criterion.reset()
+    EER_result.append(copy.deepcopy(saver))
+
+
 analyser = acebox.experiment_analyser()
 analyser.add_method(QBC_result, 'QBC')
 analyser.add_method(random_result, 'random')
 analyser.add_method(uncertainty_result, 'uncertainty')
 analyser.add_method(QUIRE_result, 'QUIRE')
+<<<<<<< HEAD
+analyser.add_method(EER_result, 'ExpectedErrorReduction')
+=======
 analyser.add_method(density_result, 'density_graph')
+>>>>>>> d17229431447519cf732e0d3e721560c158a6241
 print(analyser)
 analyser.simple_plot(title='Iris')
