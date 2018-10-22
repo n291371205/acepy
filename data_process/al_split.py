@@ -92,7 +92,7 @@ def split(X=None, y=None, instance_indexes=None, query_type=None, test_ratio=0.3
             raise NotImplementedError("Query type %s is not implemented." % type)
     if instance_indexes is not None:
         if not isinstance(instance_indexes, (list, np.ndarray)):
-            raise TypeError("An array-like object is expected, but received: %s" % str(type(instance_indexes)))
+            raise TypeError("A list or np.ndarray object is expected, but received: %s" % str(type(instance_indexes)))
         instance_indexes = np.array(instance_indexes)
     else:
         instance_indexes = np.arange(number_of_instance)

@@ -217,16 +217,16 @@ class StateIO:
 
         Returns
         -------
-        _train_idx: array-like
+        train_idx: array-like
             index of training set, shape like [n_training_samples]
 
-        _test_idx: array-like
+        test_idx: array-like
             index of testing set, shape like [n_testing_samples]
 
-        _label_idx: array-like
+        label_idx: array-like
             index of labeling set, shape like [n_labeling_samples]
 
-        _unlabel_idx: array-like
+        unlabel_idx: array-like
             index of unlabeling set, shape like [n_unlabeling_samples]
         """
         if iteration is None:
@@ -252,16 +252,16 @@ class StateIO:
 
         Returns
         -------
-        _train_idx: array-like
+        train_idx: array-like
             index of training set, shape like [n_training_samples]
 
-        _test_idx: array-like
+        test_idx: array-like
             index of testing set, shape like [n_testing_samples]
 
-        _label_idx: array-like
+        label_idx: array-like
             index of labeling set, shape like [n_labeling_samples]
 
-        _unlabel_idx: array-like
+        unlabel_idx: array-like
             index of unlabeling set, shape like [n_unlabeling_samples]
         """
         if iteration is None:

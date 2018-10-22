@@ -16,13 +16,13 @@ acebox = ToolBox(X=X, y=y, query_type='AllLabels', saving_path=None)
 # split data
 acebox.split_AL(test_ratio=0.3, initial_label_rate=0.1, split_count=split_count)
 
-# use the default SVM classifier
+# use the default Logistic Regression classifier
 model = acebox.default_model()
 
 # query 50 times
 stopping_criterion = acebox.stopping_criterion('num_of_queries', 50)
 
-# use pre-defined strategy, The data matrix is a reference which will not use additional space
+# use pre-defined strategy, The data matrix is a reference which will not use additional memory
 QBCStrategy = QueryInstanceQBC(X, y)
 randomStrategy = QueryRandom()
 uncertainStrategy = QueryInstanceUncertainty(X, y)

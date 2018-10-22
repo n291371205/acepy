@@ -1,6 +1,5 @@
 """
-Base
-ABC for AL
+ABC for acepy
 """
 
 # Authors: Ying-Peng Tang
@@ -15,14 +14,16 @@ from sklearn.utils.validation import check_X_y
 
 class BaseQueryStrategy(metaclass=ABCMeta):
     """
-    Base query class
-    should set the parameters and global const in __init__
-    implement query function with data matrix
-    should return element in _unlabel_index set
+    Base query class.
+    The parameters and global const are set in __init__()
+    The instance to query can be obtained by select(), the labeled and unlabeled
+    indexes of instances should be given. An array of selected elements in unlabeled indexes
+    should be returned.
     """
     def __init__(self, X=None, y=None, **kwargs):
         if X is not None and y is not None:
             if isinstance(X, np.ndarray) and isinstance(y, np.ndarray):
+                # will not use additional memory
                 check_X_y(X, y, accept_sparse='csc', multi_output=True)
                 self.X = X
                 self.y = y
@@ -34,11 +35,20 @@ class BaseQueryStrategy(metaclass=ABCMeta):
 
     @abstractmethod
     def select(self, label_index, unlabel_index, **kwargs):
-        """Select instance to query
+        """Select instances to query.
+
+        Parameters
+        ----------
+        label_index: {list, np.ndarray, IndexCollection}
+            The indexes of labeled instances.
+
+        unlabel_index: {list, np.ndarray, IndexCollection}
+            The indexes of unlabeled instances.
 
         Returns
         -------
-        queried keys, key should be in _unlabel_index
+        selected_index: list
+            The elements of selected_index should be in unlabel_index.
         """
         pass
 
@@ -47,57 +57,54 @@ class BaseQueryStrategy(metaclass=ABCMeta):
 
         Parameters
         ----------
-        prediction_mat
+        prediction_mat: array, shape [n_examples, n_classes]
+            The probability prediction matrix.
+
+        unlabel_index: {list, np.ndarray, IndexCollection}
+            The indexes of unlabeled instances. Should be one-to-one
+            correspondence to the prediction_mat
 
         Returns
         -------
-
-        """
-        pass
-
-
-class BaseOracle(metaclass=ABCMeta):
-    @abstractmethod
-    def query_by_instance(self, instance):
-        """Return cost and queried info
-
-        Parameters
-        ----------
-        instance: object
-            queried instance
-
-        Returns
-        -------
-        _labels of queried _indexes AND cost
+        selected_index: list
+            The elements of selected_index should be in unlabel_index.
         """
         pass
 
 
 class BaseVirtualOracle(metaclass=ABCMeta):
     """
-    Basic class of Virtual Oracle for experiment
+    Basic class of virtual Oracle for experiment
 
-    1.record basic information of oracle
-    2.define return type and return pool(can be noisy)
+    This class will build a dictionary between index-label in the __init__().
+    When querying, the queried_index should be one of the key in the dictionary.
+    And the label which corresponds to the key will be returned.
     """
 
     @abstractmethod
-    def query_by_index(self, collection):
-        """Return cost and queried info
+    def query_by_index(self, indexes):
+        """Return cost and queried info.
 
         Parameters
         ----------
-        collection: array-like
-            queried index
+        indexes: array
+            Queried indexes.
 
         Returns
         -------
-        _labels of queried _indexes AND cost
+        Labels of queried indexes AND cost
         """
         pass
 
 
 class BaseCollection(metaclass=ABCMeta):
+    """The basic container of indexes.
+
+    Functions include:
+    1. Update new indexes.
+    2. Discard existed indexes.
+    3. Validity checking. (Repeated element, etc.)
+    """
     _innercontainer = None
     _element_type = None
 
@@ -115,16 +122,22 @@ class BaseCollection(metaclass=ABCMeta):
 
     @abstractmethod
     def add(self, *args):
-        """
-        add element to the container
-        """
+        """Add element to the container."""
         pass
 
     @abstractmethod
     def discard(self, *args):
-        """
-        discard element to the container
-        """
+        """Discard element in the container."""
+        pass
+
+    @abstractmethod
+    def update(self, *args):
+        """Update multiple elements to the container."""
+        pass
+
+    @abstractmethod
+    def difference_update(self, *args):
+        """Discard multiple elements in the container"""
         pass
 
     def remove(self, value):
@@ -132,17 +145,18 @@ class BaseCollection(metaclass=ABCMeta):
         self.discard(value)
 
     def clear(self):
-        """This is slow (creates N new iterators!) but effective."""
+        """Clear the container."""
         self._innercontainer.clear()
 
 
-class BaseDB(metaclass=ABCMeta):
-    """Knowledge database
-    Have the similar function with oracle
-    but retrieving from DB will not incur a cost
+class BaseRepository(metaclass=ABCMeta):
+    """Knowledge repository
+    Store the information given by the oracle (labels, cost, etc.).
 
-    Also provide the function to return the feature
-    and label matrix of labeled set for training
+    Functions include:
+    1. Retrieving
+    2. History recording
+    3. Get labeled set for training model
     """
     def __getitem__(self, index):
         """Same function with retrieve by index.
@@ -152,130 +166,129 @@ class BaseDB(metaclass=ABCMeta):
         Parameters
         ----------
         index: object
-            index of example and label
+            Index of example and label.
 
         Returns
         -------
         example: np.ndarray
-            the example corresponding the index.
+            The example corresponding the index.
 
         label: object
-            the label corresponding the index.
+            The corresponding label of the index.
             The type of returned object is the same with the
             initializing.
         """
         return self.retrieve_by_indexes(index)
 
     @abstractmethod
-    def add(self, select_index, label, cost, example=None):
-        """add an element to the DB.
+    def add(self, select_index, label, cost=None, example=None):
+        """Add an element to the repository.
 
         Parameters
         ----------
         select_index: int or tuple
-            the selected index in active learning.
+            The selected index in active learning.
 
         label: object
-            supervised information given by oracle.
+            Supervised information given by the oracle.
 
-        cost: object, optional (default=1)
-            costs produced by query, given by the oracle.
+        cost: object, optional (default=None)
+            Cost produced by querying, given by the oracle.
 
-        example: object
-            same type of the element already in the set.
-            Raise if unknown type is given.
+        example: object, optional (default=None)
+            Instance for adding.
         """
         pass
 
     @abstractmethod
     def discard(self, index=None, example=None):
-        """discard element either by index or example.
+        """Discard element either by index or example.
 
-        Must provide at least one of them.
+        Must provide one of them.
 
         Parameters
         ----------
         index: int or tuple
-            index to discard.
+            Index to discard.
 
         example: object
-            example to discard, must be one of the data base.
+            Example to discard, must be one of the instance in data repository.
         """
         pass
 
     @abstractmethod
-    def update_query(self, labels, indexes, cost, examples=None):
+    def update_query(self, labels, indexes, cost=None, examples=None):
         """Updating data base with queried information.
+
+        The elements in the parameters should be one-to-one correspondence.
 
         Parameters
         ----------
         labels: array-like or object
-            _labels to be updated.
+            Labels to be updated.
 
         indexes: array-like or object
-            if multiple example-label pairs are provided, it should be a list or np.ndarray type
-            otherwise, it will be treated as only one pair for adding.
+            Indexes of selected instances.
 
         cost: array-like or object
             cost corresponds to the query.
 
         examples: array-like or object
-            _examples to be updated.
+            examples to be updated.
         """
         pass
 
     @abstractmethod
     def retrieve_by_indexes(self, indexes):
-        """retrieve by indexes
+        """Retrieve by indexes.
 
         Parameters
         ----------
         indexes: array-like or object
-            if 2 or more indexes to retrieve, a list or np.ndarray is expected
-            otherwise, it will be treated as only one index.
+            The indexes used for retrieving.
+            Note that, if 2 or more indexes to retrieve, a list or np.ndarray is expected.
+            Otherwise, it will be treated as only one index.
 
         Returns
         -------
-        X,y: array-like
-            the retrieved data
+        X: array-like
+            The retrieved instances.
+
+        y: array-like
+            The retrieved labels.
         """
         pass
 
     @abstractmethod
     def retrieve_by_examples(self, examples):
-        """retrieve by _examples
+        """Retrieve by examples.
 
         Parameters
         ----------
         examples: array-like or object
-            if 2 or more _examples to retrieve, a 2D array is expected
-            otherwise, it will be treated as only one index.
+            The examples used for retrieving. Should be a subset in the repository.
 
         Returns
         -------
-        X,y: array-like
-            the retrieved data
+        y: array-like
+            The retrieved labels.
         """
         pass
 
     @abstractmethod
-    def get_examples(self):
-        """Get all _examples in the data base
+    def get_training_data(self):
+        """Get training set.
 
-        If this object is a MatrixKnowledgeDB, it will return the feature matrix,
-        otherwise, A dict will be returned.
+        Returns
+        -------
+        X_train: array, shape (n_training_examples, n_features)
+            The feature matrix of training data.
+
+        y_train: array
+            The labels of training data.
         """
-        pass
-
-    @abstractmethod
-    def get_labels(self, *args):
-        """Get all _labels in the data base
-
-        If this object is a MatrixKnowledgeDB, it will return the label matrix,
-        otherwise, unknown elements will be set to a specific value (query a single label in multi-label setting).
-        """
-        pass
 
     @abstractmethod
     def clear(self):
+        """Clear this container."""
         pass

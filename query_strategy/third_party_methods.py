@@ -39,6 +39,7 @@ from __future__ import print_function
 import collections
 import warnings
 import copy
+import pickle
 
 import numpy as np
 from sklearn.neighbors import kneighbors_graph
@@ -347,10 +348,15 @@ class QueryInstanceBMDR(utils.base.BaseQueryStrategy):
             raise ValueError(
                 'kernel should have size (%d, %d)' % (len(X), len(X)))
 
-class QueryInstanceLAL(utils.base.BaseQueryStrategy):
+
+class QueryInstanceLALRand(utils.base.BaseQueryStrategy):
     """"""
     def __init__(self, X, y):
-        pass
+        super(QueryInstanceLAL, self).__init__(X, y)
+        with open('model1', 'rb') as f:
+            LAL_model1 = pickle.load(f)
+        self.model = RandomForestClassifier(self.nEstimators, oob_score=True, n_jobs=8)
+        self.lalModel = lalModel
 
 
 

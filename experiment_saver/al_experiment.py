@@ -26,7 +26,7 @@ from experiment_saver.state import State
 from query_strategy.query_strategy import QueryInstanceUncertainty, QueryRandom
 from utils.ace_warnings import *
 from utils.al_collections import IndexCollection, MultiLabelIndexCollection, FeatureIndexCollection
-from utils.knowledge_db import MatrixKnowledgeDB, ElementKnowledgeDB
+from utils.knowledge_repository import MatrixRepository, ElementRepository
 from utils.query_type import check_query_type
 from utils.tools import get_labelmatrix_in_multilabel
 from utils.stopping_criteria import StoppingCriteria
@@ -207,7 +207,8 @@ class ToolBox:
                     initial_label_rate=initial_label_rate,
                     split_count=split_count,
                     instance_indexes=self._indexes,
-                    all_class=all_class)
+                    all_class=all_class,
+                    saving_path=self._saving_path)
             else:
                 self.train_idx, self.test_idx, self.label_idx, self.unlabel_idx = split_multi_label(
                     y=self._y,
@@ -216,6 +217,7 @@ class ToolBox:
                     initial_label_rate=initial_label_rate,
                     split_count=split_count,
                     all_class=all_class,
+                    saving_path=self._saving_path
                     )
         else:
             self.train_idx, self.test_idx, self.label_idx, self.unlabel_idx = split_features(
@@ -223,7 +225,8 @@ class ToolBox:
                 test_ratio=test_ratio,
                 missing_rate=1 - initial_label_rate,
                 split_count=split_count,
-                all_features=all_class
+                all_features=all_class,
+                saving_path=self._saving_path
             )
         self._split = True
         return self.train_idx, self.test_idx, self.label_idx, self.unlabel_idx
@@ -267,9 +270,9 @@ class ToolBox:
         assert (0 <= round < self.split_count)
         train_id, test_id, Ucollection, Lcollection = self.get_split(round)
         if self.query_type == 'AllLabels':
-            return MatrixKnowledgeDB(labels=self._y[Lcollection.index],
-                                     examples=self._X[Lcollection.index, :] if self._instance_flag else None,
-                                     indexes=Lcollection.index)
+            return MatrixRepository(labels=self._y[Lcollection.index],
+                                    examples=self._X[Lcollection.index, :] if self._instance_flag else None,
+                                    indexes=Lcollection.index)
         else:
             raise NotImplemented("other query types for knowledge DB is not implemented yet.")
 
