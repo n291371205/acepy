@@ -7,6 +7,7 @@ methods for various situation
 
 from __future__ import division
 
+import copy
 import collections
 import warnings
 
@@ -492,7 +493,7 @@ class QureyExpectedErrorReduction(utils.base.BaseQueryStrategy):
 
     '''
     def __init__(self, X=None, y=None, method='log_loss', scenario='pool'):
-         """initializing
+        """initializing
 
         Parameters
         ----------
@@ -509,31 +510,32 @@ class QureyExpectedErrorReduction(utils.base.BaseQueryStrategy):
             should be one of ['pool', 'stream', 'membership']
 
         """
-        if measure not in ['zero_one_loss', 'log_loss']:
-            raise ValueError("measure must in ['least_confident', 'margin', 'entropy', 'distance_to_boundary']")
-        self.measure = measure
+                
+        if method not in ['zero_one_loss', 'log_loss']:
+            raise ValueError("measure must in ['zero_one_loss', 'log_loss']")
+        self.method = method
         if scenario not in ['pool', 'stream', 'membership']:
             raise ValueError("scenario must in ['pool', 'stream', 'membership']")
         self.scenario = scenario
-        super(QueryInstanceUncertainty, self).__init__(X, y)
-
+        super(QureyExpectedErrorReduction, self).__init__(X, y)
 
     def select(self, label_index, unlabel_index, model=SVC(), batch_size=1):
         '''
-
         '''
-
         # assert (batch_size > 0)
         assert (isinstance(unlabel_index, collections.Iterable))
         if len(unlabel_index) <= batch_size:
             return np.array([i for i in unlabel_index])
         # assert(isinstance(label_index,collections.Iterable))
 
+        # model check
         if model is None:
             model = SVC(probability=True)
             model.fit(self.X[label_index if isinstance(label_index, (list, np.ndarray)) else label_index.index],
                       self.y[label_index if isinstance(label_index, (list, np.ndarray)) else label_index.index])
-
+        if not hasattr(model, 'decision_function'):
+                raise TypeError('model object must implement decision_function methods in distance_to_boundary measure.')
+        
         # get unlabel_x,label_x,label_y
         if self.X is None or self.y is None:
             raise Exception('Data matrix is not provided, use calc_vote_entropy() instead.')
@@ -542,125 +544,34 @@ class QureyExpectedErrorReduction(utils.base.BaseQueryStrategy):
         if not isinstance(label_index, np.ndarray):
             label_index = np.array([i for i in label_index])
         unlabel_x = self.X[unlabel_index, :]
-        label_x = self.X[label_index, :]
+        # label_x = self.X[label_index, :]
         if len(np.shape(self.y)) == 1:
             label_y = self.y[label_index]
         else:
             label_y = self.y[label_index, :]
         ##################################
-
+             
+        classes = np.unique(self.y)
         pv, spv = self.__get_proba_pred(unlabel_x, model)
-
-        for i in xrang(spv[1]):
-            new_train_inds = list(label_index).append(unlabel_index[i])
-            new_train_X = self.X[new_train_inds, :]
-            new_train_y = self.y[new_train_inds, :]
-            score = 0
-            
-            for label in [0, 1]:
-                new_train_y = self.y[]
-
-        # calc score
-        if self.disagreement == 'zero_one_loss' and self.scenario == 'pool':
-            score = self.calc_vote_entropy([estimator.predict(unlabel_x) for estimator in est_arr])
-        elif self.disagreement == 'log_loss' and self.scenario == 'pool':
-            score = self.calc_avg_KL_divergence([estimator.predict_proba(unlabel_x) for estimator in est_arr])
-
-        return unlabel_index[utils.tools.nlargestarg(score, batch_size)]
-
-
-    def make_query(self):
-        dataset = self.dataset
-        X, y = zip(*dataset.get_labeled_entries())
-        unlabeled_entry_ids, X_pool = zip(*dataset.get_unlabeled_entries())
-
-        classes = np.unique(y)
-        n_classes = len(classes)
-
-        self.model.train(dataset)
-        proba = self.model.predict_proba(X_pool)
-
         scores = []
-        for i, x in enumerate(X_pool):
+        for i in range(spv[0]):
+            new_train_inds = np.append(label_index, unlabel_index[i])
+            new_train_X = self.X[new_train_inds, :]   
+            unlabel_ind = list(unlabel_index)
+            unlabel_ind.pop(i)
+            new_unlabel_X = self.X[unlabel_ind, :]
             score = []
-            for yi in range(n_classes):
-                m = copy.deepcopy(self.model)
-                m.train(Dataset(np.vstack((X, [x])), y + (yi, )))
-                p = m.predict_proba(X_pool)
-
-                if self.loss == '01':  # 0/1 loss
-                    score.append(proba[i, yi] * np.sum(1-np.max(p, axis=1)))
-                elif self.loss == 'log': # log loss
-                    score.append(proba[i, yi] * -np.sum(p * np.log(p)))
+            for yi in classes:
+                new_model = copy.deepcopy(model)
+                new_model.fit(new_train_X, np.append(label_y, yi))              
+                prob = new_model.predict_proba(new_unlabel_X)
+                if self.method == 'zero_one_loss':
+                    score.append(pv[i, yi] * np.sum(1-np.max(prob, axis=1)))
+                elif self.method == 'log_loss':
+                    score.append(pv[i, yi] * (-np.sum(prob * np.log(prob))))
             scores.append(np.sum(score))
 
-        choices = np.where(np.array(scores) == np.min(scores))[0]
-        ask_idx = self.random_state_.choice(choices)
-
-        return unlabeled_entry_ids[ask_idx]
-
-
-    def select_by_prediction_mat(self, unlabel_index, predict, batch_size=1):
-        """Select index in _unlabel_index to query
-
-        Parameters
-        ----------
-        unlabel_index: array-like
-            index of unlabel set
-
-        predict : array-like
-            prediction matrix, shape like [n_samples, n_classes] if probability prediction is needed
-            or [n_samples] only if distance_to_margin
-
-        batch_size: int
-            batch size of AL
-
-        Returns
-        -------
-        selected_idx: array-like
-            queried keys, keys are in _unlabel_index
-        """
-        # if not isinstance(_unlabel_index, (BaseCollection,set,list,np.ndarray)) :
-        #     raise TypeError('_unlabel_index should be a DataCollection, Set, List Type')
-        # if not isinstance(_label_index,(BaseCollection,set,list,np.ndarray)) :
-        #     raise TypeError('_unlabel_index should be a DataCollection, Set, List Type')
-        assert (isinstance(unlabel_index, collections.Iterable))
-        assert (batch_size > 0)
-        if len(unlabel_index) <= batch_size:
-            return np.array([i for i in unlabel_index])
-
-        pv = predict    #predict value
-        spv = np.shape(pv)  #shape of predict value
-        # validity check here
-
-        if self.measure == 'distance_to_boundary':
-            assert (len(spv) in [1, 2])
-            if len(spv) == 2:
-                if spv[1] != 1:
-                    raise Exception('1d or 2d with 1 column array is expected, but received: \n%s' % str(pv))
-                else:
-                    pv = np.array(pv).flatten()
-            return unlabel_index[utils.tools.nsmallestarg(np.abs(pv), batch_size)]
-
-        if self.measure == 'entropy':
-            # calc entropy
-            pv[pv <= 0] = 1e-06
-            entro = [-np.sum(vec * np.log(vec)) for vec in pv]
-            assert (len(np.shape(entro)) == 1)
-            return unlabel_index[utils.tools.nlargestarg(entro, batch_size)]
-
-        if self.measure == 'margin':
-            # calc margin
-            pat = np.partition(pv, (spv[1] - 2, spv[1] - 1), axis=1)
-            pat = pat[:, spv[1] - 2] - pat[:, spv[1] - 1]
-            return unlabel_index[utils.tools.nlargestarg(pat, batch_size)]
-
-        if self.measure == 'least_confident':
-            # calc least_confident
-            pat = np.partition(pv, spv[1] - 1, axis=1)
-            pat = 1 - pat[:, spv[1] - 1]
-            return unlabel_index[utils.tools.nlargestarg(pat, batch_size)]
-            
+        return unlabel_index[utils.tools.nlargestarg(scores, batch_size)]
 
     def __get_proba_pred(self, unlabel_x, model):
         """
@@ -716,4 +627,5 @@ if __name__ == '__main__':
     #                model=m,
     #                batch_size=1)
     # print(idx)
+
     pass

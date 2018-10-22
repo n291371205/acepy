@@ -12,11 +12,9 @@ from scipy.sparse import csr_matrix
 from scipy.stats import rankdata
 
 __all__ = [
-    'accuracy'，
+    'accuracy',
     'auc',
     'get_tps_fps_thresholds',
-
-
     'hamming_loss',
     'one_error',
     'coverage_error',
@@ -824,8 +822,8 @@ if __name__ == '__main__':
     # print('tpr is ', tpr)
     # y_true = np.array([[1, 0, 1, 0],[0, 1, 0, 1],[1, 0, 0, 1],[0, 1, 1, 0],[1, 0, 0, 0]])
     # y_socre = np.array([[0.9, 0.0, 0.4, 0.6],[0.1, 0.8, 0.0, 0.8],[0.8, 0.0, 0.1, 0.7],[0.1, 0.7, 0.1, 0.2],[1.0, 0, 0, 1.0]])
-    y_true = np.array([[1, 0, 1, 0],[0, 1, 0, 1]])
-    y_socre = np.array([[0.9, 0.0, 0.4, 0.6],[0.1, 0.8, 0.0, 0.8]])
+    # y_true = np.array([[1, 0, 1, 0],[0, 1, 0, 1]])
+    # y_socre = np.array([[0.9, 0.0, 0.4, 0.6],[0.1, 0.8, 0.0, 0.8]])
 
-    print(label_ranking_average_precision_score(y_true,y_socre))
-
+    # print(label_ranking_average_precision_score(y_true,y_socre))
+    pass
