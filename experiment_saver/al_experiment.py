@@ -49,7 +49,7 @@ class ToolBox:
     Parameters
     ----------
     y: array-like
-        _labels of given data [n_samples, n_labels] or [n_samples]
+        Labels of given data [n_samples, n_labels] or [n_samples]
 
     X: array-like, optional (default=None)
         data matrix with [n_samples, n_features].
