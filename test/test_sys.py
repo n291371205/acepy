@@ -48,7 +48,7 @@ for round in range(split_count):
 
         # update model and calc performance
         model.fit(X=X[Lind.index, :], y=y[Lind.index])
-        pred = model.predict(X[test_idx,:])
+        pred = model.predict(X[test_idx, :])
         accuracy = sum(pred == y[test_idx]) / len(test_idx)
 
         # save intermediate result
@@ -224,10 +224,7 @@ analyser.add_method(QBC_result, 'QBC')
 analyser.add_method(random_result, 'random')
 analyser.add_method(uncertainty_result, 'uncertainty')
 analyser.add_method(QUIRE_result, 'QUIRE')
-<<<<<<< HEAD
 analyser.add_method(EER_result, 'ExpectedErrorReduction')
-=======
 analyser.add_method(density_result, 'density_graph')
->>>>>>> d17229431447519cf732e0d3e721560c158a6241
 print(analyser)
 analyser.simple_plot(title='Iris')

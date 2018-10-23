@@ -1,1 +1,6 @@
-{}
+{
+  "test/test_multi_threading.py": true,
+  "test/test_recover_multithreads.py": true,
+  "test/test_sys.py": true,
+  "test_sys.py": true
+}

@@ -25,7 +25,7 @@ stopping_criterion = acebox.stopping_criterion('num_of_queries', 50)
 
 # use pre-defined strategy, The data matrix is a reference which will not use additional space
 
-EER = QureyExpectedErrorReduction(X, y,)
+EER = QureyExpectedErrorReduction(X, y)
 uncertainStrategy = QueryInstanceUncertainty(X, y)
 
 EER_result = []
