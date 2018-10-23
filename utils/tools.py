@@ -470,6 +470,19 @@ def check_one_to_one_correspondence(*args):
                         return False
     return True
 
+def unpack(*args):
+    """Unpack the list with only one element."""
+    ret_args = []
+    for arg in args:
+        if isinstance(arg, (list, np.ndarray)):
+            if len(arg) == 1:
+                ret_args.append(arg[0])
+            else:
+                ret_args.append(arg)
+        else:
+            ret_args.append(arg)
+    return tuple(ret_args)
+
 
 # Implement image dataset related function.
 
