@@ -18,7 +18,8 @@ from sklearn.utils.validation import check_array
 
 from utils.ace_warnings import *
 from utils.base import BaseRepository
-from utils.tools import _is_arraylike
+from utils.tools import _is_arraylike, check_one_to_one_correspondence
+from utils.al_collections import IndexCollection, MultiLabelIndexCollection
 
 
 class ElementRepository(BaseRepository):
@@ -26,31 +27,32 @@ class ElementRepository(BaseRepository):
 
     Both the example AND label are not required to be an array-like object,
     they can be complicated object.
+
+    Parameters
+    ----------
+    labels:  {list, numpy.ndarray}
+        Labels of initial labeled set. shape [n_samples]
+
+    indexes: {list, numpy.ndarray, IndexCollection}
+        Indexes of labels, should have the same length and is one-to-one correspondence of labels.
+
+    examples: array-like, optional (default=None)
+        Array of examples, should have the same length and is one-to-one correspondence of labels.
     """
 
     def __init__(self, labels, indexes, examples=None):
         """initialize supervised information.
         """
         # check and record parameters
-        if not _is_arraylike(labels):
-            raise TypeError("An array like parameter is expected.")
-        if not _is_arraylike(indexes):
-            raise TypeError("An array like parameter is expected.")
+        assert isinstance(labels, (list, np.ndarray))
+        assert isinstance(indexes, (list, np.ndarray, IndexCollection, MultiLabelIndexCollection))
+        if not check_one_to_one_correspondence(labels, indexes, examples):
+            raise ValueError("Different length of given indexes and labels found.")
+
         # self._y = copy.copy(_labels)
         self._index_len = len(labels)
-        if len(indexes) != self._index_len:
-            raise ValueError("Length of given instance_indexes do not accord the data set.")
         self._indexes = list(indexes)
-        if examples is None:
-            self._instance_flag = False
-        else:
-            if not _is_arraylike(examples):
-                raise TypeError("An array like parameter is expected.")
-            # self._X = copy.copy(_examples)
-            n_samples = len(examples)
-            if n_samples != self._index_len:
-                raise ValueError("Different length of instances and _labels found.")
-            self._instance_flag = True
+        self._instance_flag = False if examples is None else True
 
         # several _indexes construct
         if self._instance_flag:
@@ -60,30 +62,29 @@ class ElementRepository(BaseRepository):
 
         # record
         self.cost_inall = 0
-        self.cost_arr = []
+        self._cost_arr = []
         self.num_of_queries = 0
-        self.query_history = []
+        self._query_history = []
 
     def __len__(self):
         return self._index_len
 
-    def add(self, select_index, label, cost, example=None):
-        """add an element to the repository.
+    def add(self, select_index, label, cost=None, example=None):
+        """Add an element to the repository.
 
         Parameters
         ----------
         select_index: int or tuple
-            the selected index in active learning.
+            The selected index in active learning.
 
         label: object
-            supervised information given by oracle.
+            Supervised information given by the oracle.
 
-        cost: object, optional (default=1)
-            costs produced by query, given by the oracle.
+        cost: object, optional (default=None)
+            Cost produced by querying, given by the oracle.
 
-        example: object
-            same type of the element already in the set.
-            Raise if unknown type is given.
+        example: object, optional (default=None)
+            Instance for adding.
         """
         if self._instance_flag:
             if example is None:
@@ -91,37 +92,46 @@ class ElementRepository(BaseRepository):
                                 "must provide example parameter when adding entry")
             self._exa2ind[example] = select_index
             self._ind2exa[select_index] = example
+
+        if cost is not None:
+            self.cost_inall += np.sum(cost)
+            self._cost_arr.append(cost)
+
         self._ind2label[select_index] = label
         self._indexes.append(select_index)
-        self.cost_inall += np.sum(cost)
-        self.cost_arr.append(cost)
+        return self
 
     def discard(self, index=None, example=None):
-        """discard element either by index or example.
+        """Discard element either by index or example.
 
-        Must provide at least one of them.
+        Must provide one of them.
 
         Parameters
         ----------
-        index: int or tuple
-            index to discard.
+        index: int or tuple, optional (default=None)
+            Index to discard.
 
-        example: object
-            example to discard, must be one of the data base.
+        example: object, optional (default=None)
+            Example to discard, must be one of the instance in data repository.
         """
-        """Remove an element."""
         if index is None and example is None:
-            raise Exception("Must provide one of index or example")
+            raise Exception("Must provide one of index or example.")
         if index is not None:
             if index not in self._indexes:
                 warnings.warn("Index %s is not in the data base, skipped." % str(index),
                               category=ValidityWarning,
                               stacklevel=3)
                 return self
-            self._indexes.pop(index)
+            self._indexes.remove(index)
+            self._ind2label.pop(index)
+            if self._instance_flag:
+                self._exa2ind.pop(self._ind2exa.pop(index))
+            else:
+                self._ind2exa.pop(index)
+
         if example is not None:
             if not self._instance_flag:
-                raise Exception("This data base is not initialized with _examples, discard by example is illegal.")
+                raise Exception("This data base is not initialized with examples, discard by example is illegal.")
             else:
                 if example not in self._exa2ind:
                     warnings.warn("example %s is not in the data base, skipped." % str(example),
@@ -135,23 +145,24 @@ class ElementRepository(BaseRepository):
                 self._ind2label.pop(ind)
         return self
 
-    def update_query(self, labels, indexes, cost, examples=None):
+    def update_query(self, labels, indexes, cost=None, examples=None):
         """Updating data base with queried information.
+
+        The elements in the parameters should be one-to-one correspondence.
 
         Parameters
         ----------
-        labels: array-like or object
-            _labels to be updated.
+        labels: {list, numpy.ndarray}
+            Labels to be updated.
 
-        indexes: array-like or object
-            if multiple example-label pairs are provided, it should be a list or np.ndarray type
-            otherwise, it will be treated as only one pair for adding.
+        indexes: {list, numpy.ndarray, IndexCollection}
+            Indexes of selected instances.
 
-        cost: array-like or object
+        cost: array-like or object, optional (default=None)
             cost corresponds to the query.
 
-        examples: array-like or object
-            _examples to be updated.
+        examples: array-like or object, optional (default=None)
+            examples to be updated.
         """
         if not isinstance(indexes, (list, np.ndarray)):
             self.add(labels, indexes, examples, cost)
@@ -159,7 +170,9 @@ class ElementRepository(BaseRepository):
             if len(indexes) == 1:
                 self.add(labels, indexes[0], examples, cost)
             else:
-                assert (len(indexes) == len(labels))
+                if not check_one_to_one_correspondence(labels, indexes, cost, examples):
+                    raise ValueError("Different length of parameters found. "
+                                     "They should have the same length and is one-to-one correspondence.")
                 for i in range(len(labels)):
                     self.add(labels[i], indexes[i], example=examples[i] if examples is not None else None,
                              cost=cost[i] if cost is not None else None)
@@ -168,18 +181,22 @@ class ElementRepository(BaseRepository):
         return self
 
     def retrieve_by_indexes(self, indexes):
-        """retrieve by indexes
+        """Retrieve by indexes.
 
         Parameters
         ----------
         indexes: array-like or object
-            if 2 or more indexes to retrieve, a list or np.ndarray is expected
-            otherwise, it will be treated as only one index.
+            The indexes used for retrieving.
+            Note that, if 2 or more indexes to retrieve, a list or np.ndarray is expected.
+            Otherwise, it will be treated as only one index.
 
         Returns
         -------
-        X,y: array-like
-            the retrieved data
+        X: array-like
+            The retrieved instances.
+
+        y: array-like
+            The retrieved labels.
         """
         if not isinstance(indexes, (list, np.ndarray)):
             indexes = [indexes]
@@ -196,18 +213,17 @@ class ElementRepository(BaseRepository):
         return example_arr, label_arr
 
     def retrieve_by_examples(self, examples):
-        """retrieve by _examples
+        """Retrieve by examples.
 
         Parameters
         ----------
         examples: array-like or object
-            if 2 or more _examples to retrieve, a 2D array is expected
-            otherwise, it will be treated as only one index.
+            The examples used for retrieving. Should be a subset in the repository.
 
         Returns
         -------
-        X,y: array-like
-            the retrieved data
+        y: array-like
+            The retrieved labels.
         """
         if not self._instance_flag:
             raise Exception("This oracle do not have the instance information, query_by_instance is not supported")
@@ -224,49 +240,44 @@ class ElementRepository(BaseRepository):
                               category=ValidityWarning)
         return self.retrieve_by_indexes(q_id)
 
-    # def get_examples(self):
-    #     """Get all _examples in the data base
-    #
-    #     If this object is a MatrixRepository, it will return the feature matrix,
-    #     otherwise, A dict will be returned.
-    #     """
-    #     return [self._ind2exa[i] for i in self._indexes]
-    #
-    # def get_labels(self, *args):
-    #     """Get all _labels in the data base
-    #
-    #     If this object is a MatrixRepository, it will return the label matrix,
-    #     otherwise, unknown elements will be set to a specific value (query a single label in multi-label setting).
-    #     """
-    #     return [self._ind2label[i] for i in self._indexes]
-
     def get_training_data(self):
+        """Get training set.
+
+        Returns
+        -------
+        X_train: array, shape (n_training_examples, n_features)
+            The feature matrix of training data.
+
+        y_train: array
+            The labels of training data.
+        """
         pass
 
     def clear(self):
+        """Clear this container."""
         self._indexes.clear()
         self._exa2ind.clear()
         self._ind2label.clear()
         self._indexes.clear()
         self._instance_flag = False
         self.cost_inall = 0
-        self.cost_arr = []
+        self._cost_arr = []
         self.num_of_queries = 0
-        self.query_history.clear()
+        self._query_history.clear()
 
     def _update_query_history(self, labels, indexes, cost):
         """record the query history"""
-        self.query_history.append(((labels, cost), indexes))
+        self._query_history.append(((labels, cost), indexes))
 
     def full_history(self):
         """return full version of query history"""
         tb = pt.PrettyTable()
         # tb.set_style(pt.MSWORD_FRIENDLY)
-        for query_ind in range(len(self.query_history)):
-            query_result = self.query_history[query_ind]
+        for query_ind in range(len(self._query_history)):
+            query_result = self._query_history[query_ind]
             tb.add_column(str(query_ind), "query_index:%s\nresponse:%s\ncost:%s" % (
                           str(query_result[1]), str(query_result[0][0]), str(query_result[0][1])))
-        tb.add_column('in all', "number_of_queries:%s\ncost:%s"%(str(len(self.query_history)), str(self.cost_inall)))
+        tb.add_column('in all', "number_of_queries:%s\ncost:%s" % (str(len(self._query_history)), str(self.cost_inall)))
         return str(tb)
 
 

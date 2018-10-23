@@ -343,14 +343,46 @@ def _is_arraylike(x):
 
 
 def nlargestarg(a, n):
-    """return n largest values' indexes of the given array a"""
+    """Return n largest values' indexes of the given array a.
+
+    Parameters
+    ----------
+    a: array
+        Data array.
+
+    n: int
+        The number of returned args.
+
+    Returns
+    -------
+    nlargestarg: list
+        The n largest args in array a.
+    """
+    assert(_is_arraylike(a))
+    assert (n > 0)
     argret = np.argsort(a)
     # ascend
     return argret[argret.size - n:]
 
 
 def nsmallestarg(a, n):
-    """return n smallest values' indexes of the given array a"""
+    """Return n smallest values' indexes of the given array a.
+
+    Parameters
+    ----------
+    a: array
+        Data array.
+
+    n: int
+        The number of returned args.
+
+    Returns
+    -------
+    nlargestarg: list
+        The n smallest args in array a.
+    """
+    assert(_is_arraylike(a))
+    assert (n > 0)
     argret = np.argsort(a)
     # ascend
     return argret[0:n]
@@ -399,6 +431,44 @@ def calc_kernel_matrix(X, kernel, **kwargs):
         raise NotImplementedError
 
     return K
+
+def check_one_to_one_correspondence(*args):
+    """Check if the parameters are one-to-one correspondence.
+
+    Parameters
+    ----------
+    args: object
+        The parameters to test.
+
+    Returns
+    -------
+    result: int
+        Whether the parameters are one-to-one correspondence.
+        1 : yes
+        0 : no
+        -1: some parameters have the length 1.
+    """
+    first_not_none = True
+    result = True
+    for item in args:
+        # only check not none object
+        if item is not None:
+            if first_not_none:
+                # record item type
+                first_not_none = False
+                if_array = isinstance(item, (list, np.ndarray))
+                if if_array:
+                    itemlen = len(item)
+                else:
+                    itemlen = 1
+            else:
+                if isinstance(item, (list, np.ndarray)):
+                    if len(item) != itemlen:
+                        return False
+                else:
+                    if itemlen != 1:
+                        return False
+    return True
 
 
 # Implement image dataset related function.

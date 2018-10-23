@@ -182,111 +182,33 @@ class BaseRepository(metaclass=ABCMeta):
 
     @abstractmethod
     def add(self, select_index, label, cost=None, example=None):
-        """Add an element to the repository.
-
-        Parameters
-        ----------
-        select_index: int or tuple
-            The selected index in active learning.
-
-        label: object
-            Supervised information given by the oracle.
-
-        cost: object, optional (default=None)
-            Cost produced by querying, given by the oracle.
-
-        example: object, optional (default=None)
-            Instance for adding.
-        """
+        """Add an element to the repository."""
         pass
 
     @abstractmethod
     def discard(self, index=None, example=None):
-        """Discard element either by index or example.
-
-        Must provide one of them.
-
-        Parameters
-        ----------
-        index: int or tuple
-            Index to discard.
-
-        example: object
-            Example to discard, must be one of the instance in data repository.
-        """
+        """Discard element either by index or example."""
         pass
 
     @abstractmethod
     def update_query(self, labels, indexes, cost=None, examples=None):
-        """Updating data base with queried information.
-
-        The elements in the parameters should be one-to-one correspondence.
-
-        Parameters
-        ----------
-        labels: array-like or object
-            Labels to be updated.
-
-        indexes: array-like or object
-            Indexes of selected instances.
-
-        cost: array-like or object
-            cost corresponds to the query.
-
-        examples: array-like or object
-            examples to be updated.
-        """
+        """Updating data base with queried information."""
         pass
 
     @abstractmethod
     def retrieve_by_indexes(self, indexes):
-        """Retrieve by indexes.
-
-        Parameters
-        ----------
-        indexes: array-like or object
-            The indexes used for retrieving.
-            Note that, if 2 or more indexes to retrieve, a list or np.ndarray is expected.
-            Otherwise, it will be treated as only one index.
-
-        Returns
-        -------
-        X: array-like
-            The retrieved instances.
-
-        y: array-like
-            The retrieved labels.
-        """
+        """Retrieve by indexes."""
         pass
 
     @abstractmethod
     def retrieve_by_examples(self, examples):
-        """Retrieve by examples.
-
-        Parameters
-        ----------
-        examples: array-like or object
-            The examples used for retrieving. Should be a subset in the repository.
-
-        Returns
-        -------
-        y: array-like
-            The retrieved labels.
-        """
+        """Retrieve by examples."""
         pass
 
     @abstractmethod
     def get_training_data(self):
-        """Get training set.
-
-        Returns
-        -------
-        X_train: array, shape (n_training_examples, n_features)
-            The feature matrix of training data.
-
-        y_train: array
-            The labels of training data.
-        """
+        """Get training set."""
+        pass
 
     @abstractmethod
     def clear(self):
