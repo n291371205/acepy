@@ -9,9 +9,12 @@ import collections
 
 import numpy as np
 import os
+import copy
 import random
 import prettytable as pt
 from sklearn.utils.validation import check_array
+from utils.tools import check_one_to_one_correspondence, unpack, check_index_multilabel
+from utils.ace_warnings import *
 
 import utils.base
 
@@ -41,39 +44,26 @@ class Oracle(utils.base.BaseVirtualOracle):
         and is one-to-one correspondence of y, default is 1.
     """
 
-    def __init__(self, labels: object, examples: object = None, indexes: object = None, cost: object = None) -> object:
+    def __init__(self, labels, examples=None, indexes=None, cost=None):
+        if not check_one_to_one_correspondence(labels, examples, indexes, cost):
+            raise ValueError("Different length of parameters found. "
+                             "All parameters should be list type with the same length")
+
         labels = check_array(labels, ensure_2d=False, dtype=None)
         if isinstance(labels[0], np.generic):
             self._label_type = type(np.asscalar(labels[0]))
         else:
             self._label_type = type(labels[0])
-        if len(np.shape(labels)) == 2:
-            self._label_dim = 2
-        else:
-            self._label_dim = 1
+        self._label_dim = labels.ndim
 
         # check parameters
-        if indexes is None:
-            self._indexes = [i for i in range(len(labels))]
-        else:
-            self._indexes = indexes
-        if cost is None:
-            self._cost_flag = False
-        else:
-            if not (len(cost) == len(labels)):
-                raise ValueError("Different length of data matrix and cost detected.")
-            self._cost_flag = True
-        if examples is None:
-            self._instance_flag = False
-        else:
-            if not (len(examples) == len(labels)):
-                raise ValueError("Different length of _labels and instances detected.")
-            self._instance_flag = True
-        if not (len(self._indexes) == len(labels)):
-            raise ValueError("Different length of _labels and indexes detected.")
+        self._indexes = indexes if indexes is not None else [i for i in range(len(labels))]
+        self._cost_flag = True if cost is not None else False
+        self._instance_flag = True if examples is not None else False
 
         # several _indexes construct
         if self._instance_flag:
+            examples = [tuple(vec) for vec in examples]
             self._exa2ind = dict(zip(examples, self._indexes))
         if self._cost_flag:
             self._ind2all = dict(zip(self._indexes, zip(labels, cost)))
@@ -87,7 +77,7 @@ class Oracle(utils.base.BaseVirtualOracle):
     @property
     def example_keys(self):
         if self._instance_flag:
-            return self._exa2ind.keys()
+            return np.asarray(self._exa2ind.keys())
         else:
             return None
 
@@ -104,17 +94,17 @@ class Oracle(utils.base.BaseVirtualOracle):
         Parameters
         ----------
         label:  array-like
-            label matrix.
+            Label matrix.
 
         index: object
-            index of _examples, should not in the oracle.
+            Index of examples, should not in the oracle.
 
         example: array-like, optional (default=None)
-            array of _examples, initialize with this parameter to turn
+            Array of examples, initialize with this parameter to turn
             "query by instance" on.
 
         cost: array_like, optional (default=None)
-            costs of each queried instance, should have the same length
+            Cost of each queried instance, should have the same length
             and is one-to-one correspondence of y, default is 1.
         """
         if isinstance(label, np.generic):
@@ -140,68 +130,69 @@ class Oracle(utils.base.BaseVirtualOracle):
     def add_knowledge(self, labels, indexes, examples=None, cost=None):
         """Adding entries to the oracle.
 
-        Add new entries to the oracle for future querying where _indexes are the queried elements,
-        _labels are the returned data. Indexes should not be in the oracle. Examples and cost should
+        Add new entries to the oracle for future querying where indexes are the queried elements,
+        labels are the returned data. Indexes should not be in the oracle. Examples and cost should
         accord with the initializing (If exists in initializing, then must be provided.)
 
         Parameters
         ----------
         labels: array-like or object
-            label matrix.
+            Label matrix.
 
         indexes: array-like or object
-            index of _examples, should not in the oracle.
+            Index of examples, should not in the oracle.
             if update multiple entries to the oracle, a list or np.ndarray type is expected,
             otherwise, it will be cheated as only one entry.
 
         examples: array-like, optional (default=None)
-            array of _examples, initialize with this parameter to turn
-            "query by instance" on.
+            Array of examples.
 
         cost: array_like, optional (default=None)
-            costs of each queried instance, should have the same length
+            Cost of each queried instance, should have the same length
             and is one-to-one correspondence of y, default is 1.
         """
+        labels, indexes, examples, cost = unpack(labels, indexes, examples, cost)
         if not isinstance(indexes, (list, np.ndarray)):
             self._add_one_entry(labels, indexes, examples, cost)
         else:
-            assert (len(indexes) == len(labels))
+            if not check_one_to_one_correspondence(labels, indexes, examples, cost):
+                raise ValueError("Different length of parameters found.")
             for i in range(len(labels)):
                 self._add_one_entry(labels[i], indexes[i], example=examples[i] if examples is not None else None,
                                     cost=cost[i] if cost is not None else None)
 
     def query_by_index(self, indexes):
-        """Query function
+        """Query function.
 
         Parameters
         ----------
         indexes: list or int
-            index to query, if only one index to query (batch_size = 1),
+            Index to query, if only one index to query (batch_size = 1),
             an int is expected.
 
         Returns
         -------
-        sup_info: list
+        labels: list
             supervised information of queried index.
 
-        costs: list
-            corresponding costs produced by query.
+        cost: list
+            corresponding cost produced by query.
         """
         if not isinstance(indexes, (list, np.ndarray)):
             indexes = [indexes]
         sup_info = []
-        costs = []
+        cost = []
         for k in indexes:
             if k in self._ind2all.keys():
                 if self._cost_flag:
                     sup_info.append(self._ind2all[k][0])
-                    costs.append(self._ind2all[k][1])
+                    cost.append(self._ind2all[k][1])
                 else:
                     sup_info.append(self._ind2all[k])
-                    costs.append(1)
+                    cost.append(1)
             else:
                 self._do_missing(k)
-        return sup_info, costs
+        return sup_info, cost
 
     def query_by_example(self, queried_examples):
         """Query function, query information giving an instance.
@@ -229,6 +220,7 @@ class Oracle(utils.base.BaseVirtualOracle):
             queried_examples = [queried_examples]
         q_id = []
         for k in queried_examples:
+            k = tuple(k)
             if k in self._exa2ind.keys():
                 q_id.append(self._exa2ind[k])
             else:
@@ -249,7 +241,7 @@ class Oracle(utils.base.BaseVirtualOracle):
         raise KeyError("%s is not in the " + dict_name + " of this oracle" % str(key))
 
     def __repr__(self):
-        return str(self.supervised_pool)
+        return str(self._ind2all)
 
     def save_oracle(self, saving_path):
         """Save the oracle to file.
@@ -322,20 +314,24 @@ class OracleQueryMultiLabel(Oracle):
         automatically started from 0.
 
     cost: array_like, optional (default=None)
-        cost of each queried instance, should be one-to-one correspondence of each label,
-        default is all 1. Shape like [n_samples, n_classes]
+        cost of each labels, shape [n_classes] to specify a cost for each label.
+        Or [n_samples, n_classes] to specify a fine-grained label cost.
 
     """
 
     def __init__(self, labels, examples=None, indexes=None, cost=None):
         labels = check_array(labels, ensure_2d=True, dtype=None)
         self._label_shape = np.shape(labels)
+        if cost is not None:
+            sp_cost = np.shape(cost)
+            if len(sp_cost) == 1 and sp_cost[0] == self._label_shape[1]:
+                self._fine_grained_cost = False
+                self._label_cost = copy.copy(cost)
+                cost = np.asarray(cost)
+                cost = np.tile(cost, (self._label_shape[0], 1))
+            else:
+                self._fine_grained_cost = True
         super(OracleQueryMultiLabel, self).__init__(labels, examples, indexes, cost)
-        if self._cost_flag:
-            if np.shape(cost) != np.shape(labels):
-                raise ValueError("Different shapes of cost and _labels found. Cost of each queried"
-                                 " instance should be one-to-one correspondence of each label.\n"
-                                 "Shape of _labels:%s\nShape of cost:%s" % (str(np.shape(labels)), str(np.shape(cost))))
 
     def _add_one_entry(self, label, index, example=None, cost=None):
         """Adding entry to the oracle.
@@ -347,32 +343,38 @@ class OracleQueryMultiLabel(Oracle):
         Parameters
         ----------
         label:  array-like
-            label matrix.
+            Label matrix.
 
         index: int
-            index of _examples, should not in the oracle.
+            Index of examples, should not in the oracle.
 
         example: array-like, optional (default=None)
-            array of _examples, initialize with this parameter to turn
-            "query by instance" on.
+            Array of examples.
 
         cost: array_like, optional (default=None)
-            costs of each queried instance, should have the same length
-            and is one-to-one correspondence of y, default is 1.
+            Cost of each queried instance.
         """
+        if index in self._ind2all.keys():
+            warnings.warn("The entry for adding has already exist in the oracle. Skip.")
+            return
+
         if len(label) != self._label_shape[1]:
             raise ValueError(
-                "Different dimension of _labels found when adding entries: %s is expected but received: %s" %
+                "Different dimension of labels found when adding entries: %s is expected but received: %s" %
                 (str(self._label_shape[1]), str(len(label))))
         if self._instance_flag:
             if example is None:
                 raise Exception("This oracle has the instance information,"
                                 "must provide example parameter when adding entry")
+            example = tuple(example)
             self._exa2ind[example] = index
         if self._cost_flag:
             if cost is None:
-                raise Exception("This oracle has the cost information,"
-                                "must provide cost parameter when adding entry")
+                if self._fine_grained_cost == False:
+                    cost = copy.copy(self._label_cost)
+                else:
+                    raise Exception("This oracle has a fine-grained cost matrix, "
+                                    "the cost of a new entry must be provided.")
             if len(cost) != self._label_shape[1]:
                 raise ValueError(
                     "Different dimension of cost found when adding entries: %s is expected but received: %s" %
@@ -414,13 +416,7 @@ class OracleQueryMultiLabel(Oracle):
             corresponding costs produced by query.
         """
         # check validity of the given indexes
-        if not isinstance(indexes, (list, np.ndarray)):
-            indexes = [indexes]
-        datatype = collections.Counter([type(i) for i in indexes])
-        if len(datatype) != 1:
-            raise TypeError("Different types found in the given indexes.")
-        if not datatype.popitem()[0] == tuple:
-            raise TypeError("Each index should be a tuple.")
+        indexes = check_index_multilabel(indexes)
 
         # prepare queried _labels
         sup_info = []
@@ -455,7 +451,7 @@ class OracleQueryMultiLabel(Oracle):
                 self._do_missing(k)
         return sup_info, costs
 
-    def query_by_example(self, indexes):
+    def query_by_example(self, examples):
         """Query function, query information giving an instance.
 
         Note that, this function only available if initializes with
@@ -468,25 +464,25 @@ class OracleQueryMultiLabel(Oracle):
 
         Parameters
         ----------
-        indexes: array_like
+        examples: array_like
             [n_samples, n_features]
 
         Returns
         -------
-        sup_info: list
+        labels: list
             supervised information of queried instance.
 
-        costs: list
-            corresponding costs produced by query.
+        cost: list
+            Corresponding cost produced by query.
         """
         if not self._instance_flag:
-            raise Exception("This oracle do not have the instance information, query_by_instance is not supported")
-        # check validity of the given indexes
-        if not isinstance(indexes, (list, np.ndarray)):
-            indexes = [indexes]
+            raise Exception("This oracle do not have the instance information, query_by_example is not supported.")
+        # check validity of the given examples
+        if not isinstance(examples, (list, np.ndarray)):
+            examples = [examples]
 
         q_id = []
-        for k in indexes:
+        for k in examples:
             # k is a tuple with 2 elements
             k_len = len(k)
             if k_len != 1 and k_len != 2:
@@ -494,7 +490,7 @@ class OracleQueryMultiLabel(Oracle):
                     "A single index should only have 1 element (feature_vector, ) to query all _labels or"
                     "2 elements (feature_vector, [label_indexes]) to query specific _labels. But found %d in %s" %
                     (len(k), str(k)))
-            example_fea = k[0]
+            example_fea = tuple(k[0])
 
             # fetch data
             if example_fea in self._exa2ind.keys():
