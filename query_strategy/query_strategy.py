@@ -623,29 +623,3 @@ class QureyExpectedErrorReduction(utils.base.BaseQueryStrategy):
             raise Exception('2d array with [n_samples, n_class] is expected, but received: \n%s' % str(pv))
         return pv, spv
 
-
-if __name__ == '__main__':
-    # Q = QueryInstanceUncertainty(measure='entropy')
-    # id = np.arange(20)
-    # np.random.shuffle(id)
-    # _label_idx = id[:5]
-    # _unlabel_idx = id[5:]
-    # print(_unlabel_idx)
-    # unlabel_x = np.random.rand(15, 5)
-    #
-    #
-    # class Model:
-    #     def __init(self):
-    #         pass
-    #
-    #     def predict_proba(self, X):
-    #         return np.random.rand(15, 10)
-    #
-    #
-    # m = Model()
-    # idx = Q.select(_label_index=_label_idx, _unlabel_index=_unlabel_idx,
-    #                model=m,
-    #                batch_size=1)
-    # print(idx)
-
-    pass

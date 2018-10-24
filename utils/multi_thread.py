@@ -216,7 +216,7 @@ class aceThreading:
                 m, s = divmod(time_elapse, 60)
                 h, m = divmod(m, 60)
                 time_elapse = "%02d:%02d:%02d" % (h, m, s)
-            tb.add_row([self._saver[i].round, self._saver[i].get_current_progress(),
+            tb.add_row([self._saver[i].round, len(self._saver[i]),
                         time_elapse,
                         "%.3f ± %.2f" % self._saver[i].get_current_performance()])
         return str(tb)

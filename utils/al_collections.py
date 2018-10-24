@@ -284,7 +284,7 @@ class MultiLabelIndexCollection(IndexCollection):
         else:
             self._innercontainer = set()
             if label_size is None:
-                warnings.warn("This collection does not have a _label_size value, set it manually or "
+                warnings.warn("This collection does not have a label_size value, set it manually or "
                               "it will raise when decomposing indexes.",
                               category=ValidityWarning)
             self._label_size = label_size

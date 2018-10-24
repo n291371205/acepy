@@ -16,3 +16,4 @@ abandoned_code.py
 *.jpg
 *.png
 gitcmd.txt
+.pytest_cache
