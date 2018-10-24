@@ -155,10 +155,13 @@ class ToolBox:
             self.split_count = len(train_idx)
 
         self._saving_path = saving_path
+        self._saving_dir = None
         if saving_path is not None:
             if not isinstance(self._saving_path, str):
                 raise TypeError("A string is expected, but received: %s" % str(type(self._saving_path)))
-            self.save(saving_path)
+            self._saving_path = os.path.abspath(saving_path)
+            self._saving_dir = os.path.split(self._saving_path)[0]  # if a directory, a dir and None will return.
+            self.save()
 
     def split_AL(self, test_ratio=0.3, initial_label_rate=0.05,
                  split_count=10, all_class=True):
@@ -264,7 +267,7 @@ class ToolBox:
     def StateIO(self, round):
         assert (0 <= round < self.split_count)
         train_id, test_id, Lcollection, Ucollection = self.get_split(round)
-        return StateIO(round, train_id, test_id, Lcollection, Ucollection)
+        return StateIO(round, train_id, test_id, Lcollection, Ucollection, saving_path=self._saving_dir)
 
     def __knowledge_db(self, round):
         assert (0 <= round < self.split_count)

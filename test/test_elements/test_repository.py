@@ -80,8 +80,75 @@ def test_ele_basic_no_example():
 def test_ele_basic_example():
     ele_exa.add(select_index=1, label=0, example=X[1])
     assert 1 in ele_exa
-    x,y = ele_exa.retrieve_by_indexes(1)
-    assert x == [1, 1]
+    exa,lab = ele_exa.retrieve_by_indexes(1)
+    assert np.all(exa == [1, 1])
+    assert lab == [0]
+
+    exa, lab = ele_exa.retrieve_by_examples(examples=[1,1])
+    assert np.all(exa == [1, 1])
+    assert lab == [0]
+
+
+#################################
+#       Test MatrixRepository
+#################################
+mr = MatrixRepository(labels=y[label_ind], indexes=label_ind, examples=X[label_ind])
+mr2 = MatrixRepository(labels=y[label_ind], indexes=label_ind, examples=X[label_ind])
+
+
+def test_mat_raise_example():
+    with pytest.raises(ValueError, match=r'Different length of the given parameters found.*'):
+        mr3 = MatrixRepository(labels=y[label_ind], indexes=label_ind, examples=X[label_ind[0:3]])
+    with pytest.raises(Exception, match=r'This repository has the instance information.*'):
+        mr2.update_query(labels=[1], indexes=[9])
+    with pytest.warns(ValidityWarning, match=r'.*is not in the repository.*'):
+        mr2.discard(index=7)
+    with pytest.raises(ValueError, match=r'Different length of parameters found.*'):
+        mr2.update_query(labels=[1], indexes=[10, 9])
+    with pytest.warns(ValidityWarning, match=r'.*is not in the repository.*'):
+        mr2.retrieve_by_indexes(indexes=7)
+    with pytest.warns(ValidityWarning, match=r'.*or retrieving is not in the repository.*'):
+        mr2.retrieve_by_examples(examples=[4,4])
+
+
+def test_mat_basic_example():
+    mr.add(select_index=1, label=0, example=[1, 1])
+    assert (1 in mr)
+    mr.update_query(labels=[1], indexes=[60], examples=[[60,60]])
+    mr.update_query(labels=[1], indexes=61, examples=[[61, 61]])
+    assert (60 in mr)
+    assert (61 in mr)
+    mr.update_query(labels=[1, 1], indexes=[63, 64], examples=X[[63,64]])
+    assert (63 in mr)
+    assert (64 in mr)
+    mr.discard(index=61)
+    assert (61 not in mr)
+    _, a = mr.retrieve_by_indexes(60)
+    assert (a == 1)
+    _, b = mr.retrieve_by_indexes([63, 64])
+    assert (np.all(b == [1, 1]))
+    print(mr.get_training_data())
+    print(mr.full_history())
+
+    exa,lab = mr.retrieve_by_indexes(1)
+    assert np.all(exa == [1, 1])
+    assert lab == [0]
+
+    exa, lab = mr.retrieve_by_examples(examples=[1,1])
+    assert np.all(exa == [1, 1])
+    assert lab == [0]
+
+
+cost1 = ElementRepository(labels=y[label_ind], indexes=label_ind, examples=X[label_ind])
+cost2 = MatrixRepository(labels=y[label_ind], indexes=label_ind, examples=X[label_ind])
+
+
+def test_cost():
+    cost1.add(select_index=2, label=0, example=[2,2], cost=1)
+    cost2.add(select_index=2, label=0, example=[2,2], cost=1)
+    cost1.discard(index=2)
+    cost1.update_query(labels=[1, 1], indexes=[63, 64], examples=X[[63, 64]], cost=[1, 1])
+    cost2.update_query(labels=[1, 1], indexes=[63, 64], examples=X[[63,64]], cost=[1,1])
 
 # if __name__ == '__main__':
-#     test_ele_basic_no_example()
+#     test_mat_basic_example()
