@@ -519,7 +519,27 @@ class QureyExpectedErrorReduction(utils.base.BaseQueryStrategy):
         self.scenario = scenario
         super(QureyExpectedErrorReduction, self).__init__(X, y)
 
-    def select(self, label_index, unlabel_index, model=SVC(), batch_size=1):
+    def zero_one_loss(self, prob):
+        '''
+            Compute expected zero_one_loss
+        '''
+        loss = 0.0
+        for i in range(len(prob)):
+            for p in list(prob[i]):
+                loss += 1 - p
+        return loss
+
+    def log_loss(self, prob):
+        ''' 
+            Compute expected log-loss
+        '''
+        entropy = 0.0
+        for i in range(len(prob)):
+            for p in list(prob[i]):
+                entropy -= p * np.log(p)
+        return entropy
+
+    def select(self, label_index, unlabel_index, model=None, batch_size=1):
         '''
         '''
         # assert (batch_size > 0)
@@ -566,12 +586,12 @@ class QureyExpectedErrorReduction(utils.base.BaseQueryStrategy):
                 new_model.fit(new_train_X, np.append(label_y, yi))              
                 prob = new_model.predict_proba(new_unlabel_X)
                 if self.method == 'zero_one_loss':
-                    score.append(pv[i, yi] * np.sum(1-np.max(prob, axis=1)))
+                    score.append(pv[i, yi] * self.zero_one_loss(prob))
                 elif self.method == 'log_loss':
-                    score.append(pv[i, yi] * (-np.sum(prob * np.log(prob))))
+                    score.append(pv[i, yi] * self.log_loss(prob))
             scores.append(np.sum(score))
 
-        return unlabel_index[utils.tools.nlargestarg(scores, batch_size)]
+        return unlabel_index[utils.tools.nsmallestarg(scores, batch_size)]
 
     def __get_proba_pred(self, unlabel_x, model):
         """

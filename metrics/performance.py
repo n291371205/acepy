@@ -10,7 +10,8 @@ from __future__ import division
 import numpy as np
 from scipy.sparse import csr_matrix
 from scipy.stats import rankdata
-
+from utils.tools import check_one_to_one_correspondence
+ 
 __all__ = [
     'accuracy',
     'auc',
@@ -151,7 +152,7 @@ def accuracy_score(y_true, y_pred, sample_weight=None):
     score : float
     """
     y_type, y_true, y_pred = _check_targets(y_true, y_pred)
-    check_consistent_length(y_true, y_pred, sample_weight)
+    check_one_to_one_correspondence(y_true, y_pred, sample_weight)
     if y_type.startswith('multilabel'):
         differing_labels = np.diff((y_true - y_pred).indptr)
         score = differing_labels == 0
@@ -294,8 +295,8 @@ def get_tps_fps_thresholds(y_true, y_score, pos_label=None, sample_weight=None):
     thresholds = np.array(y_score)[desc_score_indices]
     y_true = np.array(y_true)[desc_score_indices]
     y_score = np.array(y_score)[desc_score_indices]
-    tps=[]
-    fps=[]
+    tps = []
+    fps = []
     if sample_weight is not None:
         weight = np.array(sample_weight)[desc_score_indices]
     else:
