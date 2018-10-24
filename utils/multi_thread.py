@@ -33,22 +33,22 @@ class aceThreading:
         data matrix, shape like [n_samples, n_features].
 
     labels:: array-like
-        _labels of _examples. shape like [n_samples] or [n_samples, n_classes] if in the multi-label setting.
+        labels of examples. shape like [n_samples] or [n_samples, n_classes] if in the multi-label setting.
 
     train_idx: array-like
-        index of training _examples. shape like [n_round, n_training_examples].
+        index of training examples. shape like [n_round, n_training_examples].
 
     test_idx: array-like
-        index of training _examples. shape like [n_round, n_testing_examples].
+        index of training examples. shape like [n_round, n_testing_examples].
 
     label_index: array-like
         index of initially labeled _examples. shape like [n_round, n_labeled_examples].
 
     unlabel_index: array-like
-        index of unlabeled _examples. shape like [n_round, n_unlabeled_examples].
+        index of unlabeled examples. shape like [n_round, n_unlabeled_examples].
 
     max_thread: int, optional (default=None)
-        The max __threads for running at the same time. If not provided, it will run all rounds simultaneously.
+        The max threads for running at the same time. If not provided, it will run all rounds simultaneously.
 
     refresh_interval: float, optional (default=1.0)
         how many seconds to refresh the current state output, default is 1.0.

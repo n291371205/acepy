@@ -139,13 +139,13 @@ class ToolBox:
             raise NotImplementedError("Query type %s is not implemented." % type)
 
         self._split = False
-        train_idx = kwargs.pop('_train_idx', None)
-        test_idx = kwargs.pop('_test_idx', None)
-        label_idx = kwargs.pop('_label_idx', None)
-        unlabel_idx = kwargs.pop('_unlabel_idx', None)
+        train_idx = kwargs.pop('train_idx', None)
+        test_idx = kwargs.pop('test_idx', None)
+        label_idx = kwargs.pop('label_idx', None)
+        unlabel_idx = kwargs.pop('unlabel_idx', None)
         if train_idx is not None and test_idx is not None and label_idx is not None and unlabel_idx is not None:
             if not (len(train_idx) == len(test_idx) == len(label_idx) == len(unlabel_idx)):
-                raise ValueError("_train_idx, _test_idx, _label_idx, _unlabel_idx "
+                raise ValueError("train_idx, test_idx, label_idx, unlabel_idx "
                                  "should have the same split count (length)")
             self._split = True
             self.train_idx = train_idx
@@ -316,7 +316,7 @@ class ToolBox:
         """Return example stopping criterion.
 
         Parameters
-        __________
+        ----------
         stopping_criteria: str, optional (default=None)
             stopping criteria, must be one of: [None, 'num_of_queries', 'cost_limit', 'percent_of_unlabel', 'time_limit']
 
@@ -336,14 +336,20 @@ class ToolBox:
         """Return the multithreading tool class
 
         Parameters
-        __________
-        __max_thread: int, optional (default=None)
-            The max __threads for running at the same time. If not provided, it will run all rounds simultaneously.
+        ----------
+        target_function: callable, optional (default=None)
+            The acceptable active learning main loop.
+            the parameters of target_function must be:
+            (round, train_id, test_id, Ucollection, Lcollection, saver, examples, labels, global_parameters)
+            in which, the global_parameters is a dict which contains the other variables for user-defined function.
 
-        _refresh_interval: float, optional (default=1.0)
+        max_thread: int, optional (default=None)
+            The max threads for running at the same time. If not provided, it will run all rounds simultaneously.
+
+        refresh_interval: float, optional (default=1.0)
             how many seconds to refresh the current state output, default is 1.0.
 
-        _saving_path: str, optional (default='.')
+        saving_path: str, optional (default='.')
             the path to save the result files.
         """
         if not self._instance_flag:
@@ -459,13 +465,13 @@ class AlExperiment:
         self._performance_metric = performance_metric
 
         # set split in the initial
-        train_idx = kwargs.pop('_train_idx', None)
-        test_idx = kwargs.pop('_test_idx', None)
-        label_idx = kwargs.pop('_label_idx', None)
-        unlabel_idx = kwargs.pop('_unlabel_idx', None)
+        train_idx = kwargs.pop('train_idx', None)
+        test_idx = kwargs.pop('test_idx', None)
+        label_idx = kwargs.pop('label_idx', None)
+        unlabel_idx = kwargs.pop('unlabel_idx', None)
         if train_idx is not None and test_idx is not None and label_idx is not None and unlabel_idx is not None:
             if not (len(train_idx) == len(test_idx) == len(label_idx) == len(unlabel_idx)):
-                raise ValueError("_train_idx, _test_idx, _label_idx, _unlabel_idx "
+                raise ValueError("train_idx, test_idx, label_idx, unlabel_idx "
                                  "should have the same split count (length)")
             self._split = True
             self._train_idx = train_idx
@@ -555,10 +561,10 @@ class AlExperiment:
 
         Returns
         -------
-        _train_idx: array-like
+        train_idx: array-like
             index of training set, shape like [n_split_count, n_training_indexex]
 
-        _test_idx: array-like
+        test_idx: array-like
             index of testing set, shape like [n_split_count, n_testing_indexex]
 
         label_idx: array-like
