@@ -188,7 +188,7 @@ for round in range(split_count):
 
 
 EER_result = []
-for round in range(10):
+for round in range(split_count):
     train_idx, test_idx, Lind, Uind = acebox.get_split(round)
     saver = acebox.StateIO(round)
 

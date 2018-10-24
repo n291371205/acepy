@@ -1,18 +1,18 @@
-from __future__ import division
+"""
+StateIO
+Container to store state object.
+Several useful functions are implemented in this class:
+1. Saving intermediate results to files.
+2. Recover workspace at any iteration (label set and unlabel set).
+3. Recover workspace from the intermediate result file in case the program exits unexpectedly.
+4. Gathering and checking the information stored in State object.
+5. Print active learning progress: current_iteration, current_mean_performance, current_cost, etc.
+"""
 
-"""
-State
-Save all information in one AL iteration
-"""
 # Authors: Ying-Peng Tang
 # License: BSD 3 clause
 
-"""
-由于state与stateIO均采用
-copy实现，很可能导致结果文件过大
-需按流读取，并每次查询N次就写一次文件释放内存
-"""
-
+from __future__ import division
 import experiment_saver.state
 import collections.abc
 import copy
@@ -28,53 +28,51 @@ from utils.al_collections import IndexCollection
 
 class StateIO:
     """
-    A class to store states
-    functions including:
-    1.saving intermediate results to files
-    2.loading data from file
-    3.return specific State
-    4.recover workspace from specific State
+    A class to store states.
+    Functions including:
+    1. Saving intermediate results to files.
+    2. Recover workspace at any iteration (label set and unlabel set).
+    3. Recover workspace from the intermediate result file in case the program exits unexpectedly.
+    4. Gathering and checking the information stored in State object.
+    5. Print active learning progress: current_iteration, current_mean_performance, current_cost, etc.
 
     Parameters
     ----------
     round: int
-        number of experiments loop
+        Number of k-fold experiments loop. 0 <= round < k
 
     train_idx: array_like
-        training index
+        Training index of one fold experiment.
 
     test_idx: array_like
-        testing index
-
-    init_U: array_like
-        initial unlabeled set
+        Testing index of one fold experiment.
 
     init_L: array_like
-        initial labeled set
+        Initial labeled index of one fold experiment.
 
-    initial_point: object
-        the performance index
+    init_U: array_like
+        Initial unlabeled index of one fold experiment.
+
+    initial_point: object, optional (default=None)
+        The performance before any querying.
+        If not specify, the initial point of different methods will be different.
 
     saving_path: str, optional (default='.')
-        path to save the intermediate files. If not provided, it will
-        save to the current dir.
+        Path to save the intermediate files. If None is given, it will
+        not save the intermediate result.
 
     check_flag: bool, optional (default=True)
-        whether to check the validaty of states.
+        Whether to check the validity of states.
 
     verbose: bool, optional (default=True)
-        whether to print query information during the AL process
+        Whether to print query information during the AL process.
 
     print_interval: int optional (default=1)
-        How many queries will trigger a print when verbose is True
+        How many queries will trigger a print when verbose is True.
     """
 
-    def __init__(self, round, train_idx, test_idx, init_L, init_U, initial_point=None, saving_path=None,
+    def __init__(self, round, train_idx, test_idx, init_L, init_U, initial_point=None, saving_path='.',
                  check_flag=True, verbose=True, print_interval=1):
-        """When init this class,
-        should store the basic info of this active learning info,
-        include: thread_id, train/_test_idx, round, etc.
-        """
         assert (isinstance(check_flag, bool))
         assert (isinstance(verbose, bool))
         self.__check_flag = check_flag
@@ -87,8 +85,6 @@ class StateIO:
             assert (isinstance(init_U, collections.Iterable))
             assert (isinstance(init_L, collections.Iterable))
             assert (isinstance(round, int) and round >= 0)
-            # if not (len(_train_idx) == len(init_L) + len(init_U)):
-            #     warnings.warn("Length of _train_idx is not equal len(init_L) + len(init_U).")
 
         self.round = round
         self.train_idx = copy.copy(train_idx)
@@ -99,11 +95,10 @@ class StateIO:
         self.batch_size = 0
         if saving_path is not None:
             self.saving_path = os.path.abspath(saving_path)
+            if not os.path.exists(self.saving_path):
+                os.mkdir(self.saving_path)
         else:
-            tp_path = os.path.join(os.getcwd(), 'AL_result')
-            if not os.path.exists(tp_path):
-                os.makedirs(tp_path)
-            self.saving_path = tp_path
+            self.saving_path = None
         self.__state_list = []
         self._first_print = True
         self.cost_inall = 0
@@ -111,62 +106,58 @@ class StateIO:
 
     @classmethod
     def load(cls, path):
+        """Load StateIO object from file.
+
+        Parameters
+        ----------
+        path: str
+            The path should be a specific .pkl file.
+
+        Returns
+        -------
+        object: StateIO
+            The StateIO object in the file.
+        """
         f = open(os.path.abspath(path), 'rb')
         saver_from_file = pickle.load(f)
         f.close()
         return saver_from_file
 
-    def set_check_flag(self, flag):
-        """
-
-        Parameters
-        ----------
-        flag: bool
-            whether to check the validaty of states.
-        """
-        assert (isinstance(flag, bool))
-        self.__check_flag = flag
-
-    def set_verbose_flag(self, flag):
-        """
-
-        Parameters
-        ----------
-        flag: bool
-            whether to print summary of states.
-        """
-        assert (isinstance(flag, bool))
-        self.__verbose = flag
-
     def set_initial_point(self, perf):
-        """
-        The initial point before querying.
+        """The initial point of performance before querying.
 
         Parameters
         ----------
         perf: object
-            the performance index
+            The performance value.
         """
         self.initial_point = perf
 
-    # use txt file to save for better generalization ability
     def save(self, file_name=None):
-        """
-        Saving intermediate results to file.
+        """Saving intermediate results to file.
 
         Parameters
         ----------
         file_name: str, optional (default=None)
-            file_name for saving, if not given ,then default name will be used.
+            File name for saving, if not given ,then default name will be used.
         """
+        if self.saving_path is None:
+            return
         if file_name is None:
-            f = open(os.path.join(self.saving_path, 'experiment_result_file_round_' + str(self.round) + '.pkl'), 'wb')
+            f = open(os.path.join(self.saving_path, 'AL_round_' + str(self.round) + '.pkl'), 'wb')
         else:
             f = open(os.path.join(self.saving_path, file_name), 'wb')
         pickle.dump(self, f)
         f.close()
 
     def add_state(self, state):
+        """Add a State object to the container.
+
+        Parameters
+        ----------
+        state: State
+            State object to be added.
+        """
         assert (isinstance(state, experiment_saver.state.State))
         self.__state_list.append(copy.deepcopy(state))
         self.__update_info()
@@ -180,15 +171,28 @@ class StateIO:
                 sys.stdout.flush()
 
     def get_state(self, index):
-        return copy.deepcopy(self.__state_list[index])
+        """Get a State object in the container.
 
-    def check_batch_size(self):
-        """
-        Check if all queries have the same batch size.
+        Parameters
+        ----------
+        index: int
+            The index of the State object. 0 <= index < len(self)
 
         Returns
         -------
-        bool
+        st: State
+            The State object in the previous iteration.
+        """
+        assert(0 <= index < len(self))
+        return copy.deepcopy(self.__state_list[index])
+
+    def check_batch_size(self):
+        """Check if all queries have the same batch size.
+
+        Returns
+        -------
+        result: bool
+            Whether all the states have the same batch size.
         """
         ind_uni = np.unique(
             [self.__state_list[i].batch_size for i in range(len(self.__state_list) - 1)], axis=0)
@@ -203,31 +207,29 @@ class StateIO:
         return self.__state_list.pop(i)
 
     def recovery(self, iteration=None):
-        """
-        Recovery workspace of given iteration before querying.
-        For example, if 1 is given, original State will be returned.
-        Note that, the object itself will be recovered, some information
-        will be discarded.
+        """Recovery workspace of a given iteration before querying.
+        For example, if 1 is given, the initial workspace without any querying will be recovered.
+        Note that, the object itself will be recovered, the information after the iteration will be discarded.
 
         Parameters
         ----------
         iteration: int, optional(default=None)
-            number of iteration to recover, start from 1.
-            if nothing given, it will recover the last query.
+            Number of iteration to recover, start from 1.
+            If nothing given, it will recover the last query.
 
         Returns
         -------
         train_idx: array-like
-            index of training set, shape like [n_training_samples]
+            Index of training set, shape like [n_training_samples]
 
         test_idx: array-like
-            index of testing set, shape like [n_testing_samples]
+            Index of testing set, shape like [n_testing_samples]
 
         label_idx: array-like
-            index of labeling set, shape like [n_labeling_samples]
+            Index of labeling set, shape like [n_labeling_samples]
 
         unlabel_idx: array-like
-            index of unlabeling set, shape like [n_unlabeling_samples]
+            Index of unlabeling set, shape like [n_unlabeling_samples]
         """
         if iteration is None:
             iteration = len(self.__state_list)
@@ -241,43 +243,44 @@ class StateIO:
         return copy.copy(self.train_idx), copy.copy(self.test_idx), copy.deepcopy(work_L), copy.deepcopy(work_U)
 
     def get_workspace(self, iteration=None):
-        """
-        get workspace of given iteration.
-        For example, if 0 is given, The State after first query will be returned.
+        """Get workspace of a given iteration before querying.
+        For example, if 1 is given, the initial workspace without any querying will be recovered.
 
         Parameters
         ----------
         iteration: int
-            number of iteration to recover.
+            Number of iteration.
 
         Returns
         -------
         train_idx: array-like
-            index of training set, shape like [n_training_samples]
+            Index of training set, shape like [n_training_samples]
 
         test_idx: array-like
-            index of testing set, shape like [n_testing_samples]
+            Index of testing set, shape like [n_testing_samples]
 
         label_idx: array-like
-            index of labeling set, shape like [n_labeling_samples]
+            Index of labeling set, shape like [n_labeling_samples]
 
         unlabel_idx: array-like
-            index of unlabeling set, shape like [n_unlabeling_samples]
+            Index of unlabeling set, shape like [n_unlabeling_samples]
         """
         if iteration is None:
             iteration = len(self.__state_list)
         work_U = copy.deepcopy(self.init_U)
         work_L = copy.deepcopy(self.init_L)
-        for i in range(iteration):
+        for i in range(iteration - 1):
             state = self.__state_list[i]
             work_U.difference_update(state.get_value('select_index'))
             work_L.update(state.get_value('select_index'))
         return copy.copy(self.train_idx), copy.copy(self.test_idx), copy.deepcopy(work_L), copy.deepcopy(work_U)
 
-    def get_current_progress(self):
+    def num_of_query(self):
+        """Return the number of queries"""
         return len(self.__state_list)
 
     def get_current_performance(self):
+        """Return the mean performance of all existed states."""
         if len(self) == 0:
             return 0, 0
         else:
@@ -297,7 +300,7 @@ class StateIO:
         return iter(self.__state_list)
 
     def refresh_info(self):
-        """re-calculate current active learning progress"""
+        """re-calculate current active learning progress."""
         numqdata = 0
         cost = 0.0
         for state in self.__state_list:

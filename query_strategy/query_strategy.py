@@ -519,7 +519,7 @@ class QureyExpectedErrorReduction(utils.base.BaseQueryStrategy):
         self.scenario = scenario
         super(QureyExpectedErrorReduction, self).__init__(X, y)
 
-    def select(self, label_index, unlabel_index, model=SVC(), batch_size=1):
+    def select(self, label_index, unlabel_index, model=None, batch_size=1):
         '''
         '''
         # assert (batch_size > 0)

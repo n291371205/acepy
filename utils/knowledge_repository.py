@@ -6,6 +6,13 @@ Functions include:
 1. Retrieving
 2. History recording
 3. Get labeled set for training model
+
+Nomally, we only store the indexes during the active learning
+process for memory efficiency. However, we also provide
+this class to store the queried instances and labels for additional usage.
+This is a container to store and retrieve queries in detail.
+It provide the function to return the labeled matrix X,y
+for training and querying history for auditing.
 """
 # Authors: Ying-Peng Tang
 # License: BSD 3 clause
@@ -82,6 +89,9 @@ class ElementRepository(BaseRepository):
         self.num_of_queries = 0
         self._query_history = []
 
+    def __contains__(self, item):
+        return item in self._ind2label.keys()
+
     def add(self, select_index, label, cost=None, example=None):
         """Add an element to the repository.
 
@@ -140,7 +150,6 @@ class ElementRepository(BaseRepository):
             self._ind2label.pop(index)
             if self._instance_flag:
                 self._exa2ind.pop(self._ind2exa.pop(index))
-            else:
                 self._ind2exa.pop(index)
 
         if example is not None:
@@ -179,15 +188,15 @@ class ElementRepository(BaseRepository):
         examples: array-like or object, optional (default=None)
             examples to be updated.
         """
+        if not check_one_to_one_correspondence(labels, indexes, cost, examples):
+            raise ValueError("Different length of parameters found. "
+                             "They should have the same length and is one-to-one correspondence.")
         labels, indexes, cost, examples = unpack(labels, indexes, cost, examples)
         if not isinstance(indexes, (list, np.ndarray)):
-            self.add(labels, indexes, cost, examples)
+            self.add(label=labels, select_index=indexes, cost=cost, example=examples)
         else:
-            if not check_one_to_one_correspondence(labels, indexes, cost, examples):
-                raise ValueError("Different length of parameters found. "
-                                 "They should have the same length and is one-to-one correspondence.")
             for i in range(len(labels)):
-                self.add(labels[i], indexes[i], example=examples[i] if examples is not None else None,
+                self.add(label=labels[i], select_index=indexes[i], example=examples[i] if examples is not None else None,
                          cost=cost[i] if cost is not None else None)
         self.num_of_queries += 1
         self._update_query_history(labels, indexes, cost)
@@ -344,6 +353,9 @@ class MatrixRepository(BaseRepository):
         self.num_of_queries = 0
         self._query_history = []
 
+    def __contains__(self, item):
+        return item in self._indexes
+
     def add(self, label, select_index, cost=None, example=None):
         """Add AN element to the repository.
 
@@ -384,7 +396,7 @@ class MatrixRepository(BaseRepository):
         return self
 
     def update_query(self, labels, indexes, cost=None, examples=None):
-        """Updating data base with queried information.
+        """Updating repository with queried information.
 
         The elements in the parameters should be one-to-one correspondence.
 
@@ -402,13 +414,15 @@ class MatrixRepository(BaseRepository):
         examples: array-like or object, optional (default=None)
             examples to be updated.
         """
+        if not check_one_to_one_correspondence(labels, indexes, cost, examples):
+            raise ValueError("Different length of parameters found. "
+                             "They should have the same length and is one-to-one correspondence.")
         labels, indexes, cost, examples = unpack(labels, indexes, cost, examples)
         if not isinstance(indexes, (list, np.ndarray)):
-            self.add(labels, indexes, cost, examples)
+            self.add(label=labels, select_index=indexes, cost=cost, example=examples)
         else:
-            assert (len(indexes) == len(labels))
             for i in range(len(indexes)):
-                self.add(labels[i], indexes[i], cost=cost[i] if cost is not None else None,
+                self.add(label=labels[i], select_index=indexes[i], cost=cost[i] if cost is not None else None,
                          example=examples[i] if examples is not None else None)
         self.num_of_queries += 1
         self._update_query_history(labels, indexes, cost)
@@ -546,7 +560,7 @@ class MatrixRepository(BaseRepository):
             The indexes of the instances and labels.
             e.g. the first row of X_train is the indexes[0] instance in feature matrix X.
         """
-        return copy.deepcopy(self._X), copy.deepcopy(self._y), copy.copy(self._indexes)
+        return copy.deepcopy(self._X), copy.deepcopy(self._y), np.asarray(self._indexes)
 
     def clear(self):
         self.cost_inall = 0
