@@ -519,6 +519,26 @@ class QureyExpectedErrorReduction(utils.base.BaseQueryStrategy):
         self.scenario = scenario
         super(QureyExpectedErrorReduction, self).__init__(X, y)
 
+    def zero_one_loss(self, prob):
+        '''
+            Compute expected zero_one_loss
+        '''
+        loss = 0.0
+        for i in range(len(prob)):
+            for p in list(prob[i]):
+                loss += 1 - p
+        return loss
+
+    def log_loss(self, prob):
+        ''' 
+            Compute expected log-loss
+        '''
+        entropy = 0.0
+        for i in range(len(prob)):
+            for p in list(prob[i]):
+                entropy -= p * np.log(p)
+        return entropy
+
     def select(self, label_index, unlabel_index, model=None, batch_size=1):
         '''
         '''
@@ -566,12 +586,12 @@ class QureyExpectedErrorReduction(utils.base.BaseQueryStrategy):
                 new_model.fit(new_train_X, np.append(label_y, yi))              
                 prob = new_model.predict_proba(new_unlabel_X)
                 if self.method == 'zero_one_loss':
-                    score.append(pv[i, yi] * np.sum(1-np.max(prob, axis=1)))
+                    score.append(pv[i, yi] * self.zero_one_loss(prob))
                 elif self.method == 'log_loss':
-                    score.append(pv[i, yi] * (-np.sum(prob * np.log(prob))))
+                    score.append(pv[i, yi] * self.log_loss(prob))
             scores.append(np.sum(score))
 
-        return unlabel_index[utils.tools.nlargestarg(scores, batch_size)]
+        return unlabel_index[utils.tools.nsmallestarg(scores, batch_size)]
 
     def __get_proba_pred(self, unlabel_x, model):
         """
@@ -603,29 +623,3 @@ class QureyExpectedErrorReduction(utils.base.BaseQueryStrategy):
             raise Exception('2d array with [n_samples, n_class] is expected, but received: \n%s' % str(pv))
         return pv, spv
 
-
-if __name__ == '__main__':
-    # Q = QueryInstanceUncertainty(measure='entropy')
-    # id = np.arange(20)
-    # np.random.shuffle(id)
-    # _label_idx = id[:5]
-    # _unlabel_idx = id[5:]
-    # print(_unlabel_idx)
-    # unlabel_x = np.random.rand(15, 5)
-    #
-    #
-    # class Model:
-    #     def __init(self):
-    #         pass
-    #
-    #     def predict_proba(self, X):
-    #         return np.random.rand(15, 10)
-    #
-    #
-    # m = Model()
-    # idx = Q.select(_label_index=_label_idx, _unlabel_index=_unlabel_idx,
-    #                model=m,
-    #                batch_size=1)
-    # print(idx)
-
-    pass

@@ -169,18 +169,18 @@ class ElementRepository(BaseRepository):
                 self._ind2label.pop(ind)
         return self
 
-    def update_query(self, labels, indexes, cost=None, examples=None):
+    def update_query(self, indexes, labels, cost=None, examples=None):
         """Updating data base with queried information.
 
         The elements in the parameters should be one-to-one correspondence.
 
         Parameters
         ----------
-        labels: {list, numpy.ndarray}
-            Labels to be updated.
-
         indexes: {list, numpy.ndarray, IndexCollection}
             Indexes of selected instances.
+
+        labels: {list, numpy.ndarray}
+            Labels to be updated.
 
         cost: array-like or object, optional (default=None)
             cost corresponds to the query.
@@ -248,7 +248,8 @@ class ElementRepository(BaseRepository):
             The retrieved labels.
         """
         if not self._instance_flag:
-            raise Exception("This oracle do not have the instance information, query_by_instance is not supported")
+            raise Exception("This repository do not have the instance information, "
+                            "retrieve_by_examples is not supported")
         if not isinstance(examples, (list, np.ndarray)):
             examples = [examples]
         elif len(np.shape(examples)) == 1:
@@ -308,9 +309,9 @@ class ElementRepository(BaseRepository):
         # tb.set_style(pt.MSWORD_FRIENDLY)
         for query_ind in range(len(self._query_history)):
             query_result = self._query_history[query_ind]
-            tb.add_column(str(query_ind), "query_index:%s\nresponse:%s\ncost:%s" % (
-                          str(query_result[1]), str(query_result[0][0]), str(query_result[0][1])))
-        tb.add_column('in all', "number_of_queries:%s\ncost:%s" % (str(len(self._query_history)), str(self.cost_inall)))
+            tb.add_column(str(query_ind), ["query_index:%s\nresponse:%s\ncost:%s" % (
+                          str(query_result[1]), str(query_result[0][0]), str(query_result[0][1]))])
+        tb.add_column('in all', ["number_of_queries:%s\ncost:%s" % (str(len(self._query_history)), str(self.cost_inall))])
         return str(tb)
 
 

@@ -633,6 +633,7 @@ class OracleQueryFeatures(OracleQueryMultiLabel):
     def __init__(self, feature_mat, indexes=None, cost=None):
         super(OracleQueryFeatures, self).__init__(labels=feature_mat, indexes=indexes, cost=cost)
 
+
 if __name__ == '__main__':
     a = Oracle([1, 2, 3])
     print(a.query_by_index(1))

@@ -48,7 +48,7 @@ for round in range(split_count):
 
         # update model and calc performance
         model.fit(X=X[Lind.index, :], y=y[Lind.index])
-        pred = model.predict(X[test_idx,:])
+        pred = model.predict(X[test_idx, :])
         accuracy = sum(pred == y[test_idx]) / len(test_idx)
 
         # save intermediate result
