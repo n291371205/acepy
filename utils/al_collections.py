@@ -62,7 +62,9 @@ class IndexCollection(BaseCollection):
     """
 
     def __init__(self, data=None):
-        if data is not None:
+        if data is None or len(data) == 0:
+            self._innercontainer = []
+        else:
             if isinstance(data, IndexCollection):
                 self._innercontainer = copy.deepcopy(data.index)
                 self._element_type = data.get_elementType()
@@ -82,8 +84,7 @@ class IndexCollection(BaseCollection):
                 self._element_type = type(np.asscalar(tmp_data))
             else:
                 self._element_type = type(tmp_data)
-        else:
-            self._innercontainer = []
+
 
     @property
     def index(self):
@@ -254,13 +255,14 @@ class MultiLabelIndexCollection(IndexCollection):
     """
 
     def __init__(self, data=None, label_size=None):
-        """Initialize the container.
-
-        Parameters
-        ----------
-        data: collections.Iterable
-        """
-        if data is not None:
+        if data is None or len(data) == 0:
+            self._innercontainer = set()
+            if label_size is None:
+                warnings.warn("This collection does not have a label_size value, set it manually or "
+                              "it will raise when decomposing indexes.",
+                              category=ValidityWarning)
+            self._label_size = label_size
+        else:
             if isinstance(data, MultiLabelIndexCollection):
                 self._innercontainer = copy.deepcopy(data.index)
                 self._label_size = data._label_size
@@ -281,13 +283,7 @@ class MultiLabelIndexCollection(IndexCollection):
                     "There are %d same elements in the given data" % (len(data) - len(self._innercontainer)),
                     category=RepeatElementWarning,
                     stacklevel=3)
-        else:
-            self._innercontainer = set()
-            if label_size is None:
-                warnings.warn("This collection does not have a label_size value, set it manually or "
-                              "it will raise when decomposing indexes.",
-                              category=ValidityWarning)
-            self._label_size = label_size
+
 
     @property
     def index(self):

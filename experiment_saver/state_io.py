@@ -89,8 +89,8 @@ class StateIO:
         self.round = round
         self.train_idx = copy.copy(train_idx)
         self.test_idx = copy.copy(test_idx)
-        self.init_U = IndexCollection(init_U)
-        self.init_L = IndexCollection(init_L)
+        self.init_U = IndexCollection(init_U) if not isinstance(init_U, IndexCollection) else init_U
+        self.init_L = IndexCollection(init_L) if not isinstance(init_L, IndexCollection) else init_L
         self.initial_point = initial_point
         self.batch_size = 0
         if saving_path is not None:
