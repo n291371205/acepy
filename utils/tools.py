@@ -470,6 +470,7 @@ def check_one_to_one_correspondence(*args):
                         return False
     return True
 
+
 def unpack(*args):
     """Unpack the list with only one element."""
     ret_args = []
@@ -502,7 +503,7 @@ def read_voc_like(xml_path, filename):
         xmax = bndbox.getElementsByTagName('xmax')[0]
         ymax = bndbox.getElementsByTagName('ymax')[0]
 
-
+    
 # use coco api to implement
 def read_coco():
     """Read annotations of coco like image dataset. The annotation file is .json.
