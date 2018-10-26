@@ -432,6 +432,7 @@ def calc_kernel_matrix(X, kernel, **kwargs):
 
     return K
 
+
 def check_one_to_one_correspondence(*args):
     """Check if the parameters are one-to-one correspondence.
 
@@ -470,6 +471,7 @@ def check_one_to_one_correspondence(*args):
                         return False
     return True
 
+
 def unpack(*args):
     """Unpack the list with only one element."""
     ret_args = []
@@ -483,6 +485,35 @@ def unpack(*args):
             ret_args.append(arg)
     return tuple(ret_args)
 
+
+# Implement image dataset related function.
+
+def read_voc_like(xml_path, filename):
+    """Read annotations of voc like image dataset. The annotation file is .xml"""
+    xml_filename = filename.split('.')[0] + '.xml'
+    xml_file = xml_path + '\\' + xml_filename
+    dom = xml.dom.minidom.parse(xml_file)
+    root = dom.documentElement
+    element_dict = dict()
+
+    # gathering elements
+    bndboxes = root.getElementsByTagName('bndbox')
+    for bndbox in bndboxes:
+        xmin = bndbox.getElementsByTagName('xmin')[0]
+        ymin = bndbox.getElementsByTagName('ymin')[0]
+        xmax = bndbox.getElementsByTagName('xmax')[0]
+        ymax = bndbox.getElementsByTagName('ymax')[0]
+
+    
+# use coco api to implement
+def read_coco():
+    """Read annotations of coco like image dataset. The annotation file is .json.
+
+    Returns
+    -------
+
+    """
+    pass
 
 # # Implement image dataset related function.
 #
@@ -512,6 +543,7 @@ def unpack(*args):
 #
 #     """
 #     pass
+
 
 
 if __name__ == '__main__':

@@ -1,5 +1,5 @@
 import copy
-from sklearn.datasets import load_iris
+from sklearn.datasets import load_iris, make_classification
 from experiment_saver.state import State
 
 from query_strategy.query_strategy import (QueryInstanceQBC,
@@ -10,7 +10,9 @@ from query_strategy.third_party_methods import QueryInstanceQUIRE, QueryInstance
 from utils.al_collections import IndexCollection
 from experiment_saver.al_experiment import ToolBox
 
-X, y = load_iris(return_X_y=True)
+X, y = dx, dy = make_classification(n_samples=150, n_features=20, n_informative=2, n_redundant=2, 
+    n_repeated=0, n_classes=2, n_clusters_per_class=2, weights=None, flip_y=0.01, class_sep=1.0, 
+    hypercube=True, shift=0.0, scale=1.0, shuffle=True, random_state=None)
 split_count = 5
 acebox = ToolBox(X=X, y=y, query_type='AllLabels', saving_path=None)
 

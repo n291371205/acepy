@@ -40,8 +40,8 @@ class ToolBox:
     the usability.
 
     In initializing, necessary information to initialize various tool classes
-    must be given. You can set the split setting in initializing or generate a new
-    split by ToolBox.split.
+    must be given. You can set the split setting in initializing or generate a 
+    new split by ToolBox.split.
 
     Note that, using ToolBox to initialize other tools is optional, you may use
     each modules independently.

@@ -303,7 +303,7 @@ class QueryInstanceQBC(utils.base.BaseQueryStrategy):
         if scenario not in ['pool', 'stream', 'membership']:
             raise ValueError("scenario must in ['pool', 'stream', 'membership']")
         self.scenario = scenario
-        super(QueryInstanceQBC, self).__init__(X,y)
+        super(QueryInstanceQBC, self).__init__(X, y)
         if disagreement in ['vote_entropy', 'KL_divergence']:
             self.disagreement = disagreement
         else:
@@ -490,7 +490,10 @@ class QueryInstanceQBC(utils.base.BaseQueryStrategy):
 
 class QureyExpectedErrorReduction(utils.base.BaseQueryStrategy):
     '''
-
+        The idea it to estimate the expected future error of a model trained using L ∪ hx, yi on
+        the remaining unlabeled instances in U (which is assumed to be representative of
+        the test distribution, and used as a sort of validation set), and query the instance
+        with minimal expected future error (sometimes called risk)
     '''
     def __init__(self, X=None, y=None, method='log_loss', scenario='pool'):
         """initializing
@@ -522,6 +525,16 @@ class QureyExpectedErrorReduction(utils.base.BaseQueryStrategy):
     def zero_one_loss(self, prob):
         '''
             Compute expected zero_one_loss
+        
+        Parameters
+        ----------
+        predict_proba: the predict_proba of the current model
+
+        Returns
+        -------
+        0/1_loss: float
+            0/1_loss for the predict_proba.
+
         '''
         loss = 0.0
         for i in range(len(prob)):
@@ -531,13 +544,22 @@ class QureyExpectedErrorReduction(utils.base.BaseQueryStrategy):
 
     def log_loss(self, prob):
         ''' 
-            Compute expected log-loss
+            Compute expected log-loss.
+
+        Parameters
+        ----------
+        predict_proba: the predict_proba of the current model
+
+        Returns
+        -------
+        log_loss: float
+            log_loss for the predict_proba.
         '''
-        entropy = 0.0
+        log_loss = 0.0
         for i in range(len(prob)):
             for p in list(prob[i]):
-                entropy -= p * np.log(p)
-        return entropy
+                log_loss -= p * np.log(p)
+        return log_loss
 
     def select(self, label_index, unlabel_index, model=None, batch_size=1):
         '''
@@ -622,4 +644,3 @@ class QureyExpectedErrorReduction(utils.base.BaseQueryStrategy):
         if len(spv) != 2 or spv[1] == 1:
             raise Exception('2d array with [n_samples, n_class] is expected, but received: \n%s' % str(pv))
         return pv, spv
-
