@@ -485,6 +485,7 @@ def unpack(*args):
     return tuple(ret_args)
 
 
+<<<<<<< HEAD
 # Implement image dataset related function.
 
 def read_voc_like(xml_path, filename):
@@ -513,6 +514,36 @@ def read_coco():
 
     """
     pass
+=======
+# # Implement image dataset related function.
+#
+# def read_voc_like(xml_path, filename):
+#     """Read annotations of voc like image dataset. The annotation file is .xml"""
+#     xml_filename = filename.split('.')[0] + '.xml'
+#     xml_file = xml_path + '\\' + xml_filename
+#     dom = xml.dom.minidom.parse(xml_file)
+#     root = dom.documentElement
+#     element_dict = dict()
+#
+#     # gathering elements
+#     bndboxes = root.getElementsByTagName('bndbox')
+#     for bndbox in bndboxes:
+#         xmin = bndbox.getElementsByTagName('xmin')[0]
+#         ymin = bndbox.getElementsByTagName('ymin')[0]
+#         xmax = bndbox.getElementsByTagName('xmax')[0]
+#         ymax = bndbox.getElementsByTagName('ymax')[0]
+#
+#
+# # use coco api to implement
+# def read_coco():
+#     """Read annotations of coco like image dataset. The annotation file is .json.
+#
+#     Returns
+#     -------
+#
+#     """
+#     pass
+>>>>>>> c3c80c6afe4dd01dc76965ab0371dada53603cc8
 
 
 if __name__ == '__main__':

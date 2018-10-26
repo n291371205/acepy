@@ -205,6 +205,14 @@ def zero_one_loss(y_true, y_pred, normalize=True, sample_weight=None):
         return n_samples - score
 
 
+def f1_score(y_true, y_pred, pos_label=1, sample_weight=None):
+
+    p, r, t = precision_recall_curve(y_true, y_pred, pos_label=pos_label,
+                           sample_weight=sample_weight)
+    
+    return 2 * (p * r) / (p + r)
+
+
 # def f1_score(y_true, y_pred, labels=None, pos_label=1, average='binary',
 #              sample_weight=None):
 #     """Compute the F1 score, also known as balanced F-score or F-measure
@@ -1363,7 +1371,7 @@ def micro_auc_score(y_true, y_score, sample_weight=None):
     if (y_type != "multilabel" and
             not (y_type == "binary" and y_true.ndim == 2)):
         raise ValueError("{0} format is not supported".format(y_type))
-        
+
     test_data_num = y_score.shape[0]
     class_num = y_score.shape[1]
     P = []
@@ -1461,4 +1469,8 @@ if __name__ == '__main__':
     # y_socre = np.array([[0.9, 0.0, 0.4, 0.6],[0.1, 0.8, 0.0, 0.8]])
 
     # print(label_ranking_average_precision_score(y_true,y_socre))
+    y_true = np.array([1, 1, 0, 0])
+    y_pred = np.array([0.1, 0.4, 0.35, 0.8])
+    print(f1_score(y_true, y_pred))
+
     pass

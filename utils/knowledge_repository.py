@@ -150,7 +150,6 @@ class ElementRepository(BaseRepository):
             self._ind2label.pop(index)
             if self._instance_flag:
                 self._exa2ind.pop(self._ind2exa.pop(index))
-                self._ind2exa.pop(index)
 
         if example is not None:
             if not self._instance_flag:
@@ -376,7 +375,8 @@ class MatrixRepository(BaseRepository):
         """
         # check validation
         if select_index in self._indexes:
-            warnings.warn("Repeated index is found when adding element to knowledge repository. Skip this item")
+            warnings.warn("Repeated index is found when adding element to knowledge repository. Skip this item",
+                          category=RepeatElementWarning)
             return self
         if self._y.ndim == 1:
             if hasattr(label, '__len__'):
@@ -388,10 +388,11 @@ class MatrixRepository(BaseRepository):
             self._y = np.append(self._y, [label], axis=0)
         self._indexes = np.append(self._indexes, select_index)
         self._cost_arr.append(cost)
-        self.cost_inall += np.sum(cost)
+        self.cost_inall += np.sum(cost) if cost is not None else 0
         if self._instance_flag:
             if example is None:
-                raise Exception("Example must be provided in a repository initialized with examples.")
+                raise Exception("This repository has the instance information,"
+                                "must provide example parameter when adding entry")
             else:
                 self._X = np.append(self._X, [example], axis=0)
         return self
@@ -537,11 +538,11 @@ class MatrixRepository(BaseRepository):
             ind = []
             for i, exa in enumerate(examples):
                 one_example_ind = self._find_one_example(exa)
-                if ind == -1:
+                if one_example_ind == -1:
                     warnings.warn("Example %s for retrieving is not in the repository, skip." % str(exa),
                                   category=ValidityWarning)
                 else:
-                    ind.append(ind)
+                    ind.append(one_example_ind)
             return self._X[ind, ], self._y[ind, ]
         else:
             raise Exception("A 1D or 2D array is expected. But received: %d" % examples.ndim)
@@ -583,9 +584,9 @@ class MatrixRepository(BaseRepository):
         # tb.set_style(pt.MSWORD_FRIENDLY)
         for query_ind in range(len(self._query_history)):
             query_result = self._query_history[query_ind]
-            tb.add_column(str(query_ind), "query_index:%s\nresponse:%s\ncost:%s" % (
-                str(query_result[1]), str(query_result[0][0]), str(query_result[0][1])))
-        tb.add_column('in all', "number_of_queries:%s\ncost:%s" % (str(len(self._query_history)), str(self.cost_inall)))
+            tb.add_column(str(query_ind), ["query_index:%s\nresponse:%s\ncost:%s" % (
+                str(query_result[1]), str(query_result[0][0]), str(query_result[0][1]))])
+        tb.add_column('in all', ["number_of_queries:%s\ncost:%s" % (str(len(self._query_history)), str(self.cost_inall))])
         return str(tb)
 
 

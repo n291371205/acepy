@@ -1,13 +1,13 @@
 """
 Heuristic:
-1. preset number of quiries
-2. preset limitation of cost
-3. preset percent of unlabel pool is labeled
-4. preset running time (CPU time) is reached
+1. Preset number of quiries
+2. Preset limitation of cost
+3. Preset percent of unlabel pool is labeled
+4. Preset running time (CPU time) is reached
 5. No unlabeled samples available
-Formal:
-5. the accuracy of a learner has reached a plateau
-6. the cost of acquiring new training data is greater than the cost of the errors made by the current model
+Formal (Not Implement yet):
+5. The Performance of a learner has reached a plateau
+6. The cost of acquiring new training data is greater than the cost of the errors made by the current model
 """
 
 from __future__ import division
@@ -15,31 +15,33 @@ import numpy as np
 import time
 from experiment_saver.state_io import StateIO
 
+
 class StoppingCriteria:
-    """class to implement stopping criteria.
+    """Class to implement stopping criteria.
 
     Initialize it with a certain string to determine when to stop.
 
-    It will collect the information in each iteration of active learning.
-    Such as number of iterations, cost, number of queries, performances, etc.
+    It needs to collect the information in each iteration of active learning by the StateIO object.
+    Once a fold of experiment is finished, you should reset the StoppingCriteria object to make
+    it available to the other experiment fold.
 
-    example of supported stopping criteria:
+    Example of supported stopping criteria:
     1. No unlabeled samples available (default)
-    2. preset number of quiries is reached
-    3. preset limitation of cost is reached
-    4. preset percent of unlabel pool is labeled
-    5. preset running time (CPU time) is reached
+    2. Preset number of queries is reached
+    3. Preset limitation of cost is reached
+    4. Preset percent of unlabel pool is labeled
+    5. Preset running time (CPU time) is reached
 
     Parameters
     __________
     stopping_criteria: str, optional (default=None)
-        stopping criteria, must be one of: [None, 'num_of_queries', 'cost_limit', 'percent_of_unlabel', 'time_limit']
+        Stopping criteria, must be one of: [None, 'num_of_queries', 'cost_limit', 'percent_of_unlabel', 'time_limit']
 
-        None: stop when no unlabeled samples available
-        'num_of_queries': stop when preset number of quiries is reached
-        'cost_limit': stop when cost reaches the limit.
-        'percent_of_unlabel': stop when specific percentage of unlabeled data pool is labeled.
-        'time_limit': stop when CPU time reaches the limit.
+        None: Stop when no unlabeled samples available
+        'num_of_queries': Stop when preset number of quiries is reached
+        'cost_limit': Stop when cost reaches the limit.
+        'percent_of_unlabel': Stop when specific percentage of unlabeled data pool is labeled.
+        'time_limit': Stop when CPU time reaches the limit.
     """
 
     def __init__(self, stopping_criteria=None, value=None):
@@ -53,7 +55,7 @@ class StoppingCriteria:
             if not isinstance(value, int):
                 value = int(value)
         else:
-            if not isinstance(value, float):
+            if not isinstance(value, float) and value is not None:
                 value = float(value)
         if stopping_criteria == 'time_limit':
             self._start_time = time.clock()
@@ -63,7 +65,7 @@ class StoppingCriteria:
         self._current_iter = 0
         self._accum_cost = 0
         self._current_unlabel = 100
-        self._percent = 1.0
+        self._percent = 0
 
         self._init_value = value
 
@@ -117,4 +119,4 @@ class StoppingCriteria:
         self._current_iter = 0
         self._accum_cost = 0
         self._current_unlabel = 100
-        self._percent = 1.0
+        self._percent = 0

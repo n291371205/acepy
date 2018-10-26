@@ -1,5 +1,5 @@
 import copy
-from sklearn.datasets import load_iris,make_classification
+from sklearn.datasets import load_iris, make_classification
 from experiment_saver.state import State
 
 from query_strategy.query_strategy import (QueryInstanceQBC,

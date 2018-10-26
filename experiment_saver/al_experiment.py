@@ -101,7 +101,7 @@ class ToolBox:
     """
 
     def __init__(self, y, X=None, instance_indexes=None,
-                 query_type='AllLabels', saving_path='.', **kwargs):
+                 query_type='AllLabels', saving_path=None, **kwargs):
         self._index_len = None
         # check and record parameters
         self._y = check_array(y, ensure_2d=False, dtype=None)
@@ -155,10 +155,16 @@ class ToolBox:
             self.split_count = len(train_idx)
 
         self._saving_path = saving_path
+        self._saving_dir = None
         if saving_path is not None:
             if not isinstance(self._saving_path, str):
                 raise TypeError("A string is expected, but received: %s" % str(type(self._saving_path)))
-            self.save(saving_path)
+            self._saving_path = os.path.abspath(saving_path)
+            if os.path.isdir(self._saving_path):
+                self._saving_dir = self._saving_path
+            else:
+                self._saving_dir = os.path.split(self._saving_path)[0]  # if a directory, a dir and None will return.
+            self.save()
 
     def split_AL(self, test_ratio=0.3, initial_label_rate=0.05,
                  split_count=10, all_class=True):
@@ -252,7 +258,7 @@ class ToolBox:
             return copy.deepcopy(self.train_idx), copy.deepcopy(self.test_idx), \
                    copy.deepcopy(self.label_idx), copy.deepcopy(self.unlabel_idx)
 
-    def clean_oracle(self):
+    def get_clean_oracle(self):
         if self.query_type == 'Features':
             return OracleQueryFeatures(feature_mat=self._X)
         elif self.query_type == 'AllLabels':
@@ -261,10 +267,12 @@ class ToolBox:
             else:
                 return Oracle(self._y)
 
-    def StateIO(self, round):
+    def get_stateio(self, round, saving_path=None, check_flag=True, verbose=True, print_interval=1):
         assert (0 <= round < self.split_count)
         train_id, test_id, Lcollection, Ucollection = self.get_split(round)
-        return StateIO(round, train_id, test_id, Lcollection, Ucollection)
+        return StateIO(round, train_id, test_id, Lcollection, Ucollection,
+                       saving_path=self._saving_dir if saving_path is None else saving_path,
+                       check_flag=check_flag, verbose=verbose, print_interval=print_interval)
 
     def __knowledge_db(self, round):
         assert (0 <= round < self.split_count)
@@ -276,7 +284,7 @@ class ToolBox:
         else:
             raise NotImplemented("other query types for knowledge DB is not implemented yet.")
 
-    def query_strategy(self, strategy_name="random"):
+    def get_query_strategy(self, strategy_name="random"):
         """Return the query strategy object.
 
         Parameters

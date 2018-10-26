@@ -2,7 +2,7 @@ from __future__ import division
 import pytest
 import numpy as np
 import random
-from utils.tools import *
+from utils.tools import check_index_multilabel,check_one_to_one_correspondence
 
 
 def test_check_index_multilabel():
@@ -23,3 +23,4 @@ def test_check_one_to_one_correspondence():
     assert not check_one_to_one_correspondence(np.reshape(a,(5,10)), np.reshape(a,(10,5)))
 
 
+def test_

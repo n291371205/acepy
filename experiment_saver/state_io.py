@@ -71,7 +71,7 @@ class StateIO:
         How many queries will trigger a print when verbose is True.
     """
 
-    def __init__(self, round, train_idx, test_idx, init_L, init_U, initial_point=None, saving_path='.',
+    def __init__(self, round, train_idx, test_idx, init_L, init_U, initial_point=None, saving_path=None,
                  check_flag=True, verbose=True, print_interval=1):
         assert (isinstance(check_flag, bool))
         assert (isinstance(verbose, bool))
@@ -89,8 +89,8 @@ class StateIO:
         self.round = round
         self.train_idx = copy.copy(train_idx)
         self.test_idx = copy.copy(test_idx)
-        self.init_U = IndexCollection(init_U)
-        self.init_L = IndexCollection(init_L)
+        self.init_U = IndexCollection(init_U) if not isinstance(init_U, IndexCollection) else init_U
+        self.init_L = IndexCollection(init_L) if not isinstance(init_L, IndexCollection) else init_L
         self.initial_point = initial_point
         self.batch_size = 0
         if saving_path is not None:
@@ -183,7 +183,7 @@ class StateIO:
         st: State
             The State object in the previous iteration.
         """
-        assert(0 <= index < len(self))
+        assert (0 <= index < len(self))
         return copy.deepcopy(self.__state_list[index])
 
     def check_batch_size(self):
@@ -207,15 +207,15 @@ class StateIO:
         return self.__state_list.pop(i)
 
     def recovery(self, iteration=None):
-        """Recovery workspace of a given iteration before querying.
-        For example, if 1 is given, the initial workspace without any querying will be recovered.
+        """Recovery workspace after $iteration$ querying.
+        For example, if 0 is given, the initial workspace without any querying will be recovered.
         Note that, the object itself will be recovered, the information after the iteration will be discarded.
 
         Parameters
         ----------
         iteration: int, optional(default=None)
-            Number of iteration to recover, start from 1.
-            If nothing given, it will recover the last query.
+            Number of iteration to recover, start from 0.
+            If nothing given, it will return the current workspace.
 
         Returns
         -------
@@ -233,23 +233,25 @@ class StateIO:
         """
         if iteration is None:
             iteration = len(self.__state_list)
+        assert (0 <= iteration <= len(self))
         work_U = copy.deepcopy(self.init_U)
         work_L = copy.deepcopy(self.init_L)
-        for i in range(iteration - 1):
+        for i in range(iteration):
             state = self.__state_list[i]
             work_U.difference_update(state.get_value('select_index'))
             work_L.update(state.get_value('select_index'))
-        self.__state_list = self.__state_list[0:iteration - 1]
+        self.__state_list = self.__state_list[0:iteration]
         return copy.copy(self.train_idx), copy.copy(self.test_idx), copy.deepcopy(work_L), copy.deepcopy(work_U)
 
     def get_workspace(self, iteration=None):
-        """Get workspace of a given iteration before querying.
-        For example, if 1 is given, the initial workspace without any querying will be recovered.
+        """Get workspace after $iteration$ querying.
+        For example, if 0 is given, the initial workspace without any querying will be recovered.
 
         Parameters
         ----------
-        iteration: int
-            Number of iteration.
+        iteration: int, optional(default=None)
+            Number of iteration, start from 0.
+            If nothing given, it will get the current workspace.
 
         Returns
         -------
@@ -267,9 +269,10 @@ class StateIO:
         """
         if iteration is None:
             iteration = len(self.__state_list)
+        assert (0 <= iteration <= len(self))
         work_U = copy.deepcopy(self.init_U)
         work_L = copy.deepcopy(self.init_L)
-        for i in range(iteration - 1):
+        for i in range(iteration):
             state = self.__state_list[i]
             work_U.difference_update(state.get_value('select_index'))
             work_L.update(state.get_value('select_index'))
@@ -280,12 +283,26 @@ class StateIO:
         return len(self.__state_list)
 
     def get_current_performance(self):
-        """Return the mean performance of all existed states."""
+        """Return the mean ± std performance of all existed states.
+
+        Only available when the performance of each state is a single float value.
+
+        Returns
+        -------
+        mean: float
+            Mean performance of the existing states.
+
+        std: float
+            Std performance of the existing states.
+        """
         if len(self) == 0:
             return 0, 0
         else:
             tmp = [self[i].get_value('performance') for i in range(self.__len__())]
-            return np.mean(tmp), np.std(tmp)
+            if isinstance(tmp[0], collections.Iterable):
+                return np.NaN, np.NaN
+            else:
+                return np.mean(tmp), np.std(tmp)
 
     def __len__(self):
         return len(self.__state_list)
@@ -313,7 +330,7 @@ class StateIO:
 
     def __update_info(self):
         """Update current active learning progress"""
-        state = self.__state_list[len(self)-1]
+        state = self.__state_list[len(self) - 1]
         if 'cost' in state.keys():
             self.cost_inall += np.sum(state.get_value('cost'))
         self._numqdata += len(state.get_value('select_index'))
@@ -329,12 +346,14 @@ class StateIO:
         tb.add_column('number of queries', [len(self.__state_list)])
         # tb.add_column('queried data', ["%d (%.2f%% of unlabeled data)" % (numqdata, self.queried_percentage)])
         tb.add_column('cost', [cost])
-        tb.add_column('saving path', [self.saving_path])
+        # tb.add_column('saving path', [self.saving_path])
+        tb.add_column('Performance:', ["%.3f ± %.2f" % self.get_current_performance()])
         return str(tb)
 
     def _refresh_dataline(self):
         tb = self.__repr__()
         return tb.splitlines()[1]
+
 
 # class StateIO_all_labels(StateIO):
 #     """StateIO for all _labels querying"""
