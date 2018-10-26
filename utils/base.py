@@ -8,17 +8,26 @@ ABC for acepy
 from abc import ABCMeta, abstractmethod
 import collections.abc
 import copy
+import scipy.stats
+import scipy.io as scio
+from utils.ace_warnings import *
 import numpy as np
 from sklearn.utils.validation import check_X_y
+from experiment_saver.state_io import StateIO
 
 
 class BaseQueryStrategy(metaclass=ABCMeta):
-    """
-    Base query class.
+    """Base query class.
+
     The parameters and global const are set in __init__()
     The instance to query can be obtained by select(), the labeled and unlabeled
     indexes of instances should be given. An array of selected elements in unlabeled indexes
     should be returned.
+
+    Note that, the X, y in initializing is the whole data set.
+    If a method needs to construct kernel matrix or something like that
+    which uses the information of test set, the train_idx of the
+    data set should be given in initializing.
     """
     def __init__(self, X=None, y=None, **kwargs):
         if X is not None and y is not None:
@@ -150,7 +159,7 @@ class BaseCollection(metaclass=ABCMeta):
 
 
 class BaseRepository(metaclass=ABCMeta):
-    """Knowledge repository
+    """Base knowledge repository
     Store the information given by the oracle (labels, cost, etc.).
 
     Functions include:
@@ -214,3 +223,148 @@ class BaseRepository(metaclass=ABCMeta):
     def clear(self):
         """Clear this container."""
         pass
+
+
+class BaseAnalyser(metaclass=ABCMeta):
+    """Base Analyser class for analysing experiment result.
+
+    Functions include various validity checking and visualizing of the given data.
+
+    Normally, the results should be a list which contains k elements. Each element represents
+    one fold experiment result.
+    Legal result object includes:
+        - StateIO object.
+        - A list contains n performances for n queries.
+        - A list contains n tuples with 2 elements, in which, the first
+          element is the x_axis (e.g., iteration, cost),
+          and the second element is the y_axis (e.g., the performance)
+    """
+    def __init__(self):
+        # The data extracted from the original data.
+        self.__data_extracted = dict()
+        # The summary of the data (each entry is optional according to the type of data):
+        # 1. length
+        # 2. batch_size
+        # 3. performance mean and std
+        # 4. cost
+        self.__data_summary = dict()
+
+    def _type_of_data(self, result):
+        """Judge type of data is given by the user.
+
+        Returns
+        -------
+        type: int
+            0 - StateIO object.
+            1 - A list contains n performances for n queries.
+            2 - A list contains n tuples with 2 elements, in which, the first
+                element is the x_axis (e.g., iteration, cost),
+                and the second element is the y_axis (e.g., the performance)
+        """
+        if isinstance(result[0], StateIO):
+            return 0
+        elif isinstance(result[0], list):
+            if isinstance(result[0][0], collections.Iterable):
+                if len(result[0][0]) > 1:
+                    return 2
+            return 1
+        else:
+            raise ValueError("Illegal result data is given.\n"
+                             "Legal result object includes:\n"
+                             "\t- StateIO object.\n"
+                             "\t- A list contains n performances for n queries.\n"
+                             "\t- A list contains n tuples with 2 elements, in which, "
+                             "the first element is the x_axis (e.g., iteration, cost),"
+                             "and the second element is the y_axis (e.g., the performance)")
+
+
+    def get_methods_names(self):
+        return self.__data_raw.keys()
+
+    def get_extracted_data(self, method_name):
+        return self.__data_extracted[method_name]
+
+    @abstractmethod
+    def add_method(self, method_results, method_name):
+        """Add the results of a method."""
+        pass
+
+    @abstractmethod
+    def plot_line_chart(self, *args, **kwargs):
+        """Plot the performance curves of different methods."""
+        pass
+
+    # some commonly used tool function for experiment analysing.
+    @classmethod
+    def paired_ttest(cls, a, b, alpha=0.05):
+        """Performs a two-tailed paired t-test of the hypothesis that two
+        matched samples, in the arrays a and b, come from distributions with
+        equal means. The difference a-b is assumed to come from a normal
+        distribution with unknown variance.  a and b must have the same length.
+
+        Parameters
+        ----------
+        a: array-like
+            array for paired t-test.
+
+        b: array-like
+            array for paired t-test.
+
+        alpha: float, optional (default=0.05)
+            A value alpha between 0 and 1 specifying the
+            significance level as (100*alpha)%. Default is
+            0.05 for 5% significance.
+
+        Returns
+        -------
+        H: int
+            the result of the test.
+            H=0     -- indicates that the null hypothesis ("mean is zero")
+                    cannot be rejected at the alpha% significance level
+                    (No significant difference between a and b).
+            H=1     -- indicates that the null hypothesis can be rejected at the alpha% level
+                    (a and b have significant difference).
+
+        Examples
+        -------
+        >>> from analyser.experiment_analyser import ExperimentAnalyser
+        >>> a = [1.2, 2, 3]
+        >>> b = [1.6, 2.5, 1.1]
+        >>> print(ExperimentAnalyser.paired_ttest(a, b))
+        1
+        """
+        rava = a
+        ravb = b
+        # check a,b
+        sh = np.shape(a)
+        if len(sh) == 1:
+            pass
+        elif sh[0] == 1 or sh[1] == 1:
+            rava = np.ravel(a)
+            ravb = np.ravel(b)
+        else:
+            raise Exception("a or b must be a 1-D array. but received: %s" % str(sh))
+        assert (len(a) == len(b))
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            statistic, pvalue = scipy.stats.ttest_rel(rava, ravb)
+        H = int(pvalue <= alpha)
+        return H
+
+    @classmethod
+    def load_matlab_file(cls, file_name):
+        """load a data file in .mat format
+
+        Parameters
+        ----------
+        file_name: str
+            path to a matlab file
+
+        Returns
+        -------
+        data: dict
+            dictionary with variable names as keys, and loaded matrixes as
+            values.
+        """
+        return scio.loadmat(file_name)
