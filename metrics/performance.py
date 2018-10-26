@@ -790,7 +790,7 @@ def auc(x, y, reorder=True):
 
 def get_fps_tps_thresholds(y_true, y_score, pos_label=None):
     '''
-        """Calculate true and false positives per binary classification threshold.
+    Calculate true and false positives per binary classification threshold.
 
     Parameters
     ----------
@@ -1452,11 +1452,11 @@ def average_precision_score(y_true, y_score, sample_weight=None):
 
 
 if __name__ == '__main__':
-    # y = np.array([1, 1, 0, 0])
-    # scores = np.array([0.1, 0.4, 0.35, 0.8])
-    # fps, tps, t = get_fps_tps_thresholds(y, scores, pos_label=2)
-    # print('fps is ', fps)
-    # print('tps is ', tps)
+    y = np.array([1, 1, 2, 2])
+    scores = np.array([0.1, 0.4, 0.35, 0.8])
+    fps, tps, t = get_fps_tps_thresholds(y, scores, pos_label=2)
+    print('fps is ', fps)
+    print('tps is ', tps)
     # print(roc_auc_score(y, scores))
     # print(accuracy_score(np.array([[0, 1], [1, 1]]), np.ones((2, 2))))
     # fpr, tpr, thresholds = roc_curve(y, scores, pos_label=2)
