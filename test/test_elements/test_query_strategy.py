@@ -1,7 +1,6 @@
 from __future__ import division
 import pytest
 import numpy as np
-import random
 from sklearn.datasets import make_classification
 
 # X, y = dx, dy = make_classification(n_samples=150, n_features=20, n_informative=2, n_redundant=2, 

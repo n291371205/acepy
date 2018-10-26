@@ -432,6 +432,7 @@ def calc_kernel_matrix(X, kernel, **kwargs):
 
     return K
 
+
 def check_one_to_one_correspondence(*args):
     """Check if the parameters are one-to-one correspondence.
 
@@ -485,7 +486,6 @@ def unpack(*args):
     return tuple(ret_args)
 
 
-<<<<<<< HEAD
 # Implement image dataset related function.
 
 def read_voc_like(xml_path, filename):
@@ -514,7 +514,7 @@ def read_coco():
 
     """
     pass
-=======
+
 # # Implement image dataset related function.
 #
 # def read_voc_like(xml_path, filename):
@@ -543,7 +543,7 @@ def read_coco():
 #
 #     """
 #     pass
->>>>>>> c3c80c6afe4dd01dc76965ab0371dada53603cc8
+
 
 
 if __name__ == '__main__':

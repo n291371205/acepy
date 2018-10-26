@@ -1452,11 +1452,6 @@ def average_precision_score(y_true, y_score, sample_weight=None):
 
 
 if __name__ == '__main__':
-    y = np.array([1, 1, 2, 2])
-    scores = np.array([0.1, 0.4, 0.35, 0.8])
-    fps, tps, t = get_fps_tps_thresholds(y, scores, pos_label=2)
-    print('fps is ', fps)
-    print('tps is ', tps)
     # print(roc_auc_score(y, scores))
     # print(accuracy_score(np.array([[0, 1], [1, 1]]), np.ones((2, 2))))
     # fpr, tpr, thresholds = roc_curve(y, scores, pos_label=2)
@@ -1469,8 +1464,8 @@ if __name__ == '__main__':
     # y_socre = np.array([[0.9, 0.0, 0.4, 0.6],[0.1, 0.8, 0.0, 0.8]])
 
     # print(label_ranking_average_precision_score(y_true,y_socre))
-    y_true = np.array([1, 1, 0, 0])
-    y_pred = np.array([0.1, 0.4, 0.35, 0.8])
-    print(f1_score(y_true, y_pred))
+    # y_true = np.array([1, 1, 0, 0])
+    # y_pred = np.array([0.1, 0.4, 0.35, 0.8])
+    # print(f1_score(y_true, y_pred))
 
     pass
